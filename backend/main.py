@@ -161,7 +161,24 @@ _ROUTES_API_PUBLIQUES = {
     "/api/auth/setup",
     "/api/auth/login",
     "/api/auth/check",
+    "/api/health",
 }
+
+
+def _erreur_stream(message: str):
+    """Reponse SSE immediate avec un message d'erreur."""
+
+    async def gen():
+        yield _sse({"erreur": message})
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+def _message_cle_manquante() -> str:
+    return (
+        "Cle API Groq manquante sur le serveur. "
+        "Sur Render : Environment → GROQ_API_KEY → votre cle Groq."
+    )
 
 
 @app.middleware("http")
@@ -219,6 +236,7 @@ async def auth_status():
     return {
         "configure": securite.est_configure(),
         "demo": securite.mode_demo(),
+        "cloud_configure": bool(config.CLOUD_API_KEY),
         "cloud_autorise": securite.cloud_autorise(),
         "chiffrement": not securite.mode_demo(),
         "acces_local": not securite.mode_demo(),
@@ -246,6 +264,8 @@ async def auth_check(authorization: Optional[str] = Header(None)):
 @app.post("/api/auth/setup")
 async def auth_setup(req: AuthSetupRequest):
     """Premiere configuration : choisir un mot de passe prive."""
+    if securite.mode_demo():
+        raise HTTPException(status_code=403, detail="Mode demo : pas de mot de passe requis.")
     if req.mot_de_passe != req.confirmation:
         raise HTTPException(status_code=400, detail="Les mots de passe ne correspondent pas.")
     if len(req.mot_de_passe) < securite.MIN_MOT_DE_PASSE:
@@ -841,12 +861,21 @@ async def chat(req: ChatRequest):
     historique = req.messages[-config.HISTORY_MAX :]
 
     rapide = _question_rapide(question, req.piece_jointe) and not req.image_jointe
-    utiliser_cloud = _cloud_autorise() and (
-        mode == "cloud" or mode == "auto"
-    )
+    if securite.mode_demo():
+        if not config.CLOUD_API_KEY:
+            return _erreur_stream(_message_cle_manquante())
+        utiliser_cloud = True
+    else:
+        utiliser_cloud = _cloud_autorise() and (
+            mode == "cloud" or mode == "auto"
+        )
 
     # --- Branche vision : image jointe ---
     if req.image_jointe and req.image_jointe.base64.strip():
+        if securite.mode_demo() and not config.CLOUD_API_KEY:
+            return _erreur_stream(_message_cle_manquante())
+        if securite.mode_demo():
+            utiliser_cloud = True
         if utiliser_cloud:
             vmsgs = vision.messages_cloud(
                 systeme,
@@ -870,10 +899,13 @@ async def chat(req: ChatRequest):
                     return
                 except Exception as exc:  # noqa: BLE001
                     erreur_cloud = str(exc)
-                    if mode == "cloud":
+                    if mode == "cloud" or securite.mode_demo():
                         yield _sse({"erreur": f"Vision cloud : {erreur_cloud}"})
                         return
                     yield _sse({"info": "Bascule vision locale"})
+            if securite.mode_demo():
+                yield _sse({"erreur": "Vision indisponible en mode demo."})
+                return
             try:
                 async for chunk in _stream_vision_local_cascade(vmsgs):
                     yield chunk
@@ -903,10 +935,14 @@ async def chat(req: ChatRequest):
                     yield _sse({"sources": sources})
                 return
             except Exception as exc:  # noqa: BLE001
-                if mode == "cloud":
+                if mode == "cloud" or securite.mode_demo():
                     yield _sse({"erreur": f"Cloud indisponible : {exc}"})
                     return
                 yield _sse({"info": "Bascule en local"})
+
+        if securite.mode_demo():
+            yield _sse({"erreur": "Service cloud indisponible. Reessayez dans quelques secondes."})
+            return
 
         if sources:
             yield _sse({"sources": sources})
@@ -1235,6 +1271,8 @@ async def _completion_local(messages, modele) -> str:
 
 async def _completion(messages) -> tuple[str, str]:
     """Reponse complete : cloud (cascade) si autorise, sinon local. Renvoie (texte, mode)."""
+    if securite.mode_demo() and not config.CLOUD_API_KEY:
+        raise RuntimeError(_message_cle_manquante())
     if _cloud_autorise() and await _internet_disponible():
         derniere = None
         for modele in config.CLOUD_MODELS:
@@ -1245,7 +1283,10 @@ async def _completion(messages) -> tuple[str, str]:
                 if _est_quota_atteint(str(exc)):
                     continue
                 break
-        # Tous les modeles cloud ont echoue -> on tente le local.
+        if securite.mode_demo():
+            raise RuntimeError(f"Cloud indisponible : {derniere}") from derniere
+    if securite.mode_demo():
+        raise RuntimeError("Service cloud indisponible en mode demo.")
     texte = await _completion_local(messages, config.MODEL_NAME)
     return texte, f"local ({config.MODEL_NAME})"
 

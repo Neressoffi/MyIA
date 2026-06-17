@@ -8,12 +8,13 @@ services:
     name: jarvis-demo
     runtime: python
     plan: free
+    healthCheckPath: /api/auth/status
     buildCommand: pip install -r requirements-cloud.txt
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: JARVIS_DEMO
         value: "1"
       - key: PYTHON_VERSION
-        value: "3.12.0"
+        value: "3.12.7"
       - key: GROQ_API_KEY
         sync: false

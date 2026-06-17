@@ -121,7 +121,11 @@ HOST = os.environ.get("JARVIS_SERVER_HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", os.environ.get("JARVIS_SERVER_PORT", "8765")))
 
 # --- Mode demo public (en ligne, sans mot de passe ni donnees perso) ---
-DEMO_MODE = os.environ.get("JARVIS_DEMO", "").strip().lower() in ("1", "true", "yes")
+_ON_RENDER = os.environ.get("RENDER", "").strip().lower() in ("1", "true", "yes")
+DEMO_MODE = (
+    os.environ.get("JARVIS_DEMO", "").strip().lower() in ("1", "true", "yes")
+    or _ON_RENDER
+)
 DISABLE_WHISPER = DEMO_MODE or os.environ.get(
     "JARVIS_DISABLE_WHISPER", ""
 ).strip().lower() in ("1", "true", "yes")

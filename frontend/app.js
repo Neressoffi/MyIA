@@ -70,10 +70,13 @@ async function initSecurite() {
   if (r0.ok) {
     const s0 = await r0.json();
     if (s0.demo) {
+      isDemo = true;
       cloudAutorise = s0.cloud_autorise;
+      cloudConfigured = !!s0.cloud_configure;
       setSession("demo-public");
       masquerVerrou();
       afficherBandeauDemo();
+      applyDemoUI();
       return;
     }
   }
@@ -225,6 +228,18 @@ let currentModel = null;
 let modelsLoaded = false;
 let cloudConfigured = false;
 let cloudAutorise = false;
+let isDemo = false;
+
+function applyDemoUI() {
+  if (!isDemo) return;
+  if (micBtn) {
+    micBtn.disabled = true;
+    micBtn.title = "Micro indisponible sur la démo en ligne";
+    micBtn.style.opacity = "0.45";
+  }
+  const lockUrl = document.querySelector(".lock-url");
+  if (lockUrl) lockUrl.style.display = "none";
+}
 
 // ----------------------------------------------------------------------
 // Etats du reacteur Arc : idle / listening / thinking / speaking
@@ -241,12 +256,28 @@ function setState(state) {
 }
 
 // ----------------------------------------------------------------------
-// Etat de connexion (Ollama)
+// Etat de connexion (Ollama / cloud)
 // ----------------------------------------------------------------------
 async function checkHealth() {
   try {
     const r = await apiFetch("/api/health");
     const data = await r.json();
+    isDemo = !!data.demo;
+    if (isDemo) {
+      applyDemoUI();
+      if (data.cloud_configure && data.cloud_autorise) {
+        statusDot.className = "dot ok";
+        statusText.textContent = "Démo en ligne";
+        setModeBadge("cloud", data.cloud_modele || "Groq");
+      } else {
+        statusDot.className = "dot ko";
+        statusText.textContent = "Clé Groq manquante";
+        setModeBadge("cloud", "—");
+      }
+      cloudConfigured = !!data.cloud_configure;
+      cloudAutorise = !!data.cloud_autorise;
+      return;
+    }
     if (data.ollama) {
       statusDot.className = "dot ok";
       statusText.textContent = "Prêt";
