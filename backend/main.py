@@ -336,6 +336,8 @@ async def health():
         "vision_local": config.VISION_LOCAL_MODELS,
         "securise": not securite.mode_demo(),
         "demo": securite.mode_demo(),
+        "micro_disponible": (not config.DISABLE_WHISPER) or bool(config.CLOUD_API_KEY),
+        "whisper_cloud": config.DISABLE_WHISPER and bool(config.CLOUD_API_KEY),
     }
     try:
         async with httpx.AsyncClient(timeout=5) as client:
@@ -1097,19 +1099,53 @@ async def image(req: ImageRequest):
                 ) from e2
 
 
+async def _transcrire_groq(donnees: bytes, suffix: str) -> str:
+    """Transcription vocale via Groq Whisper (leger, pour la version en ligne)."""
+    nom = f"audio{suffix if suffix.startswith('.') else '.' + suffix}"
+    mime = "audio/webm"
+    if suffix.lower() in (".wav",):
+        mime = "audio/wav"
+    elif suffix.lower() in (".mp3", ".mpeg", ".mpga"):
+        mime = "audio/mpeg"
+    elif suffix.lower() == ".m4a":
+        mime = "audio/mp4"
+    headers = {"Authorization": f"Bearer {config.CLOUD_API_KEY}"}
+    async with httpx.AsyncClient(timeout=90) as client:
+        r = await client.post(
+            f"{config.CLOUD_API_BASE}/audio/transcriptions",
+            headers=headers,
+            files={"file": (nom, donnees, mime)},
+            data={
+                "model": "whisper-large-v3",
+                "language": config.WHISPER_LANGUAGE,
+                "response_format": "json",
+                "temperature": "0",
+            },
+        )
+        if r.status_code != 200:
+            raise RuntimeError(r.text[:300])
+        return (r.json().get("text") or "").strip()
+
+
 @app.post("/api/transcribe")
 async def transcribe(audio: UploadFile = File(...)):
-    """Transcrit une note vocale (offline) en texte avec Whisper."""
-    if config.DISABLE_WHISPER:
-        raise HTTPException(
-            status_code=503,
-            detail="La transcription vocale n'est pas disponible sur la démo en ligne.",
-        )
+    """Transcrit une note vocale : Whisper local ou Groq Whisper (en ligne)."""
+    donnees = await _lire_upload(audio)
     suffix = Path(audio.filename or "audio.webm").suffix or ".webm"
+
+    if config.DISABLE_WHISPER:
+        if not config.CLOUD_API_KEY:
+            raise HTTPException(status_code=503, detail=_message_cle_manquante())
+        try:
+            texte = await _transcrire_groq(donnees, suffix)
+            return {"texte": texte}
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
     tmp_path = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp.write(await _lire_upload(audio))
+            tmp.write(donnees)
             tmp_path = tmp.name
 
         def _transcrire(chemin: str) -> str:

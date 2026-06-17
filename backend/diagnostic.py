@@ -41,7 +41,7 @@ def executer(health: dict) -> dict:
         {"nom": "Recherche web", "ok": bool(config.CLOUD_API_KEY), "score": 90 if config.CLOUD_API_KEY else 50},
         {"nom": "Calcul fiable", "ok": True, "score": 100},
         {"nom": "Synthèse vocale", "ok": True, "score": 100},
-        {"nom": "Reconnaissance vocale", "ok": True, "score": 95},
+        {"nom": "Reconnaissance vocale", "ok": bool(config.CLOUD_API_KEY) or not config.DISABLE_WHISPER, "score": 95 if (config.CLOUD_API_KEY or not config.DISABLE_WHISPER) else 0},
         {"nom": "Génération d'images", "ok": True, "score": 85},
         {"nom": "Documents Word/PDF", "ok": True, "score": 100},
         {"nom": "Analyse d'images (vision)", "ok": bool(config.CLOUD_API_KEY), "score": 95 if config.CLOUD_API_KEY else 40},

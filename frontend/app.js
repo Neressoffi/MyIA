@@ -233,12 +233,37 @@ let isDemo = false;
 function applyDemoUI() {
   if (!isDemo) return;
   if (micBtn) {
-    micBtn.disabled = true;
-    micBtn.title = "Micro indisponible sur la démo en ligne";
-    micBtn.style.opacity = "0.45";
+    micBtn.disabled = false;
+    micBtn.title = "Note vocale";
+    micBtn.style.opacity = "";
   }
   const lockUrl = document.querySelector(".lock-url");
   if (lockUrl) lockUrl.style.display = "none";
+}
+
+function speechRecognitionDisponible() {
+  return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+
+async function transcrireNavigateur() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) throw new Error("Navigateur non compatible (utilisez Chrome ou Edge).");
+  return new Promise((resolve, reject) => {
+    const rec = new SR();
+    rec.lang = "fr-FR";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.onresult = (e) => resolve((e.results[0][0].transcript || "").trim());
+    rec.onerror = (e) => reject(new Error(e.error || "echec reconnaissance"));
+    rec.onend = () => {};
+    rec.start();
+    window._jarvisRec = rec;
+  });
+}
+
+function arreterTranscrireNavigateur() {
+  try { window._jarvisRec?.stop(); } catch {}
+  window._jarvisRec = null;
 }
 
 // ----------------------------------------------------------------------
@@ -856,15 +881,34 @@ async function toggleRecording() {
       setState("thinking");
       try {
         const r = await apiFetch("/api/transcribe", { method: "POST", body: fd });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.detail || `Erreur ${r.status}`);
+        }
         const data = await r.json();
         if (data.texte && data.texte.trim()) {
-          // On NE montre PAS la note vocale : JARVIS l'ecoute et repond.
           sendMessage(data.texte, { display: false });
         } else {
           setState("idle");
           addMessage("bot", "🤔 Je n'ai rien entendu de clair. Réessaie un peu plus près du micro.");
         }
       } catch (e) {
+        if (speechRecognitionDisponible()) {
+          try {
+            setState("listening");
+            const texte = await transcrireNavigateur();
+            arreterTranscrireNavigateur();
+            micBtn.classList.remove("recording");
+            if (texte) sendMessage(texte, { display: false });
+            else {
+              setState("idle");
+              addMessage("bot", "🤔 Je n'ai rien entendu de clair. Réessaie.");
+            }
+            return;
+          } catch (e2) {
+            arreterTranscrireNavigateur();
+          }
+        }
         setState("idle");
         addMessage("bot", "⚠️ Transcription impossible : " + e.message);
       }
