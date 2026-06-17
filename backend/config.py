@@ -137,6 +137,11 @@ ANALYTICS_ENABLED = os.environ.get("JARVIS_ANALYTICS", "1").strip().lower() not 
     "false",
     "no",
 )
+# Serveur dashboard separe (local : port 8767 par defaut).
+ADMIN_HOST = os.environ.get("JARVIS_ADMIN_HOST", "127.0.0.1")
+ADMIN_PORT = int(
+    os.environ.get("JARVIS_ADMIN_PORT", os.environ.get("PORT_ADMIN", "8767"))
+)
 
 # Limite l'historique envoye au modele (moins de tokens = reponse plus rapide).
 HISTORY_MAX = int(os.environ.get("JARVIS_HISTORY_MAX", "8"))

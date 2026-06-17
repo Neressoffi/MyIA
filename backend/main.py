@@ -150,10 +150,6 @@ class AuthPasswordRequest(BaseModel):
     confirmation: str
 
 
-class AdminLoginRequest(BaseModel):
-    mot_de_passe: str
-
-
 # --------------------------------------------------------------------------
 # Protection : authentification + en-tetes de securite
 # --------------------------------------------------------------------------
@@ -166,8 +162,6 @@ _ROUTES_API_PUBLIQUES = {
     "/api/auth/login",
     "/api/auth/check",
     "/api/health",
-    "/api/admin/login",
-    "/api/admin/status",
 }
 
 
@@ -241,12 +235,6 @@ def _message_cle_manquante() -> str:
 async def protection_globale(request, call_next):
     path = request.url.path
 
-    # Routes admin : mot de passe dedie (pas le mot de passe utilisateur).
-    if path.startswith("/api/admin/") and path not in ("/api/admin/login", "/api/admin/status"):
-        token = analytics.extraire_token_admin(request.headers.get("authorization"))
-        if not analytics.admin_session_valide(token):
-            return JSONResponse({"detail": "Acces admin refuse."}, status_code=401)
-
     if path.startswith("/api/") and path not in _ROUTES_API_PUBLIQUES:
         token = securite.extraire_token(request.headers.get("authorization"))
         if not securite.session_valide(token):
@@ -257,18 +245,15 @@ async def protection_globale(request, call_next):
 
     response = await call_next(request)
 
-    # Journal des visites API (hors admin).
-    if config.ANALYTICS_ENABLED and not path.startswith("/api/admin/"):
+    # Journal des visites API.
+    if config.ANALYTICS_ENABLED:
         try:
             ip = analytics.client_ip(request)
             ua = request.headers.get("user-agent", "")
-            if (
-                path.startswith("/api/")
-                and request.method in ("GET", "POST")
-            ):
+            if path.startswith("/api/") and request.method in ("GET", "POST"):
                 analytics.enregistrer_visite(ip, path, ua)
             elif request.method == "GET" and (
-                path in ("/", "/index.html", "/admin.html") or path.endswith(".html")
+                path in ("/", "/index.html") or path.endswith(".html")
             ):
                 analytics.enregistrer_visite(ip, path, ua)
         except Exception:  # noqa: BLE001
@@ -398,45 +383,6 @@ async def auth_password(req: AuthPasswordRequest):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True}
-
-
-# --------------------------------------------------------------------------
-# Dashboard administrateur (IP + conversations)
-# --------------------------------------------------------------------------
-@app.get("/api/admin/status")
-async def admin_status():
-    return {
-        "configure": analytics.admin_configure(),
-        "analytics": config.ANALYTICS_ENABLED,
-    }
-
-
-@app.post("/api/admin/login")
-async def admin_login(req: AdminLoginRequest):
-    try:
-        token = analytics.admin_connecter(req.mot_de_passe)
-    except ValueError as exc:
-        raise HTTPException(status_code=401, detail=str(exc)) from exc
-    return {"ok": True, "token": token}
-
-
-@app.get("/api/admin/rapport")
-async def admin_rapport(authorization: Optional[str] = Header(None)):
-    token = analytics.extraire_token_admin(authorization)
-    if not analytics.admin_session_valide(token):
-        raise HTTPException(status_code=401, detail="Acces admin refuse.")
-    return analytics.rapport()
-
-
-@app.get("/api/admin/conversation/{conv_id}")
-async def admin_conversation(conv_id: str, authorization: Optional[str] = Header(None)):
-    token = analytics.extraire_token_admin(authorization)
-    if not analytics.admin_session_valide(token):
-        raise HTTPException(status_code=401, detail="Acces admin refuse.")
-    conv = analytics.conversation_par_id(conv_id)
-    if not conv:
-        raise HTTPException(status_code=404, detail="Conversation introuvable.")
-    return conv
 
 
 # --------------------------------------------------------------------------

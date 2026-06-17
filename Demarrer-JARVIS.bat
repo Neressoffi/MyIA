@@ -46,6 +46,7 @@ start "" msedge "http://127.0.0.1:%JARVIS_SERVER_PORT%/?v=%RANDOM%" || start "" 
 echo.
 echo ============================================
 echo  JARVIS est pret : http://127.0.0.1:%JARVIS_SERVER_PORT%
+echo  Dashboard admin : Demarrer-Dashboard.bat ^(port 8767^)
 echo  Creez votre mot de passe ^(min. 6 caracteres^).
 echo  NE FERMEZ PAS la fenetre "JARVIS-Serveur".
 echo ============================================
