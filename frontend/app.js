@@ -450,6 +450,36 @@ function _utterance(text, voice) {
 }
 
 let currentAudio = null;
+let audioUnlocked = false;
+
+function isMobileDevice() {
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    || (navigator.maxTouchPoints > 1 && window.matchMedia("(max-width: 900px)").matches);
+}
+
+/** Debloque l'audio sur mobile (iOS bloque sans geste utilisateur). */
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (Ctx) {
+      const ctx = new Ctx();
+      ctx.resume().catch(() => {});
+    }
+  } catch {}
+  if ("speechSynthesis" in window) {
+    try { speechSynthesis.resume(); } catch {}
+    speechSynthesis.getVoices();
+  }
+}
+
+function preferBrowserTTS() {
+  return isMobileDevice();
+}
+
+document.addEventListener("touchstart", unlockAudio, { once: true, passive: true });
+document.addEventListener("click", unlockAudio, { once: true });
 
 // ----------------------------------------------------------------------
 // Voix EN FLUX : JARVIS parle phrase par phrase PENDANT qu'il ecrit.
@@ -475,6 +505,7 @@ function stopSpeaking() {
 
 // Prepare l'audio naturel (serveur) d'une phrase ; null si echec (-> repli).
 async function fetchTTS(text) {
+  if (preferBrowserTTS()) return null;
   try {
     const r = await apiFetch("/api/tts", {
       method: "POST",
@@ -495,8 +526,12 @@ function speakBrowserOnce(text, done) {
   u.onstart = () => setState("speaking");
   u.onend = () => done();
   u.onerror = () => done();
+  speechSynthesis.cancel();
   speechSynthesis.speak(u);
   setTimeout(() => { try { speechSynthesis.resume(); } catch {} }, 80);
+  if (isMobileDevice()) {
+    setTimeout(() => { try { speechSynthesis.resume(); } catch {} }, 300);
+  }
 }
 
 function enqueueTTS(text) {
@@ -521,7 +556,13 @@ async function playNextTTS() {
   audio.onplay = () => setState("speaking");
   audio.onended = () => { URL.revokeObjectURL(url); currentAudio = null; playNextTTS(); };
   audio.onerror = () => { URL.revokeObjectURL(url); speakBrowserOnce(item.text, playNextTTS); };
-  try { await audio.play(); } catch { playNextTTS(); }
+  try {
+    await audio.play();
+  } catch {
+    URL.revokeObjectURL(url);
+    currentAudio = null;
+    speakBrowserOnce(item.text, playNextTTS);
+  }
 }
 
 // Demarre une nouvelle lecture en flux (a appeler avant de streamer).
@@ -584,7 +625,13 @@ async function speak(text) {
     audio.onplay = () => setState("speaking");
     audio.onended = () => { setState("idle"); URL.revokeObjectURL(url); currentAudio = null; };
     audio.onerror = () => { URL.revokeObjectURL(url); speakBrowser(text); };
-    await audio.play();
+    try {
+      await audio.play();
+    } catch {
+      URL.revokeObjectURL(url);
+      currentAudio = null;
+      speakBrowser(text);
+    }
   } catch {
     // Hors-ligne ou erreur : on utilise la voix locale du navigateur.
     speakBrowser(text);
@@ -638,6 +685,7 @@ function detectImageRequest(text) {
 }
 
 async function sendMessage(text, opts = {}) {
+  unlockAudio();
   text = (text || "").trim();
   if (!text && imageJointe) text = "Analyse cette image et décris ce que tu vois.";
   if (!text && pieceJointe) text = "Analyse ce fichier et résume-le clairement.";
@@ -835,6 +883,7 @@ function stopRecording() {
 }
 
 async function toggleRecording() {
+  unlockAudio();
   if (mediaRecorder && mediaRecorder.state === "recording") {
     stopRecording();
     return;
