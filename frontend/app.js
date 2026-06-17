@@ -450,63 +450,64 @@ function _utterance(text, voice) {
 }
 
 let currentAudio = null;
-let audioUnlocked = false;
-
-// Son silencieux pour debloquer l'audio sur iOS/Android.
-const SILENT_AUDIO = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
 
 function isMobileDevice() {
   return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
     || (navigator.maxTouchPoints > 1 && window.matchMedia("(max-width: 900px)").matches);
 }
 
-/** Debloque l'audio (a appeler a chaque envoi / clic micro). */
-function unlockAudio() {
-  try {
-    const a = new Audio(SILENT_AUDIO);
-    a.volume = 0.001;
-    a.setAttribute("playsinline", "true");
-    a.play().catch(() => {});
-  } catch {}
-  if ("speechSynthesis" in window) {
-    try {
-      speechSynthesis.getVoices();
-      const v = pickVoice() || fiableLocalVoice();
-      const u = new SpeechSynthesisUtterance(" ");
-      if (v) { u.voice = v; u.lang = v.lang; }
-      u.volume = 0.01;
-      u.rate = 2;
-      speechSynthesis.speak(u);
-      speechSynthesis.resume();
-    } catch {}
-  }
-  audioUnlocked = true;
-}
-
-function preferBrowserTTS() {
-  return isMobileDevice();
-}
-
-/** Voix mobile : lecture complete par phrases (fiable sur iOS/Safari). */
-function mobileSpeakFull(text) {
-  if (!text?.trim() || !voiceSettings.enabled) return;
-  if (!("speechSynthesis" in window)) return;
+/** Sur mobile : lire la voix UNIQUEMENT au tap (obligatoire sur iPhone). */
+async function playVoiceOnTap(text) {
+  const t = (text || "").trim();
+  if (!t) return;
   stopSpeaking();
-  const chunks = text.trim().match(/[^.!?…\n]+[.!?…\n]*|[^.!?…\n]+/g) || [text.trim()];
-  let i = 0;
-  const next = () => {
-    if (i >= chunks.length) { setState("idle"); return; }
-    const part = chunks[i++].trim();
-    if (!part) { next(); return; }
-    const u = _utterance(part, pickVoice() || fiableLocalVoice());
-    u.onstart = () => setState("speaking");
-    u.onend = next;
-    u.onerror = next;
-    speechSynthesis.speak(u);
-    setTimeout(() => { try { speechSynthesis.resume(); } catch {} }, 100);
-  };
+  setState("thinking");
+  try {
+    const r = await apiFetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: t,
+        gender: voiceSettings.gender,
+        rate: voiceSettings.rate,
+        pitch: voiceSettings.pitch,
+      }),
+    });
+    if (r.ok) {
+      const url = URL.createObjectURL(await r.blob());
+      const audio = new Audio(url);
+      audio.setAttribute("playsinline", "true");
+      currentAudio = audio;
+      audio.onplay = () => setState("speaking");
+      audio.onended = () => {
+        setState("idle");
+        URL.revokeObjectURL(url);
+        currentAudio = null;
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        currentAudio = null;
+        speakNowSimple(t);
+      };
+      await audio.play();
+      return;
+    }
+  } catch {}
+  speakNowSimple(t);
+}
+
+function speakNowSimple(text) {
+  if (!("speechSynthesis" in window)) { setState("idle"); return; }
   speechSynthesis.cancel();
-  setTimeout(next, 120);
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "fr-FR";
+  const v = speechSynthesis.getVoices().find((x) => x.lang.toLowerCase().startsWith("fr"));
+  if (v) u.voice = v;
+  u.rate = voiceSettings.rate || 1;
+  u.onstart = () => setState("speaking");
+  u.onend = () => setState("idle");
+  u.onerror = () => setState("idle");
+  speechSynthesis.speak(u);
 }
 
 function addListenButton(el, text) {
@@ -515,17 +516,14 @@ function addListenButton(el, text) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "btn-listen";
-  btn.textContent = "🔊 Écouter";
+  btn.textContent = "🔊 Appuyez pour écouter";
   btn.addEventListener("click", (e) => {
     e.preventDefault();
-    unlockAudio();
-    mobileSpeakFull(text);
+    e.stopPropagation();
+    playVoiceOnTap(text);
   });
   el.appendChild(btn);
 }
-
-document.addEventListener("touchstart", unlockAudio, { passive: true });
-document.addEventListener("click", unlockAudio);
 
 // ----------------------------------------------------------------------
 // Voix EN FLUX : JARVIS parle phrase par phrase PENDANT qu'il ecrit.
@@ -551,7 +549,7 @@ function stopSpeaking() {
 
 // Prepare l'audio naturel (serveur) d'une phrase ; null si echec (-> repli).
 async function fetchTTS(text) {
-  if (preferBrowserTTS()) return null;
+  if (isMobileDevice()) return null;
   try {
     const r = await apiFetch("/api/tts", {
       method: "POST",
@@ -643,7 +641,7 @@ function endStreamingTTS(full) {
   if (!voiceSettings.enabled) { if (!ttsBusy) setState("idle"); return; }
   if (isMobileDevice()) {
     streamingTTS = false;
-    mobileSpeakFull(full);
+    setState("idle");
     return;
   }
   const reste = full.slice(spokenIndex).trim();
@@ -656,10 +654,8 @@ function endStreamingTTS(full) {
 //                  2) repli sur la voix du navigateur si hors-ligne.
 async function speak(text) {
   if (!voiceSettings.enabled) { setState("idle"); return; }
-  unlockAudio();
   if (isMobileDevice()) {
-    stopSpeaking();
-    mobileSpeakFull(text);
+    playVoiceOnTap(text);
     return;
   }
   stopSpeaking();
@@ -743,7 +739,6 @@ function detectImageRequest(text) {
 }
 
 async function sendMessage(text, opts = {}) {
-  unlockAudio();
   text = (text || "").trim();
   if (!text && imageJointe) text = "Analyse cette image et décris ce que tu vois.";
   if (!text && pieceJointe) text = "Analyse ce fichier et résume-le clairement.";
@@ -859,7 +854,7 @@ async function sendMessage(text, opts = {}) {
     if (full) {
       history.push({ role: "assistant", content: full });
       endStreamingTTS(full);
-      if (isMobileDevice()) addListenButton(botEl, full);
+      addListenButton(botEl, full);
     } else {
       setState("idle");
     }
@@ -942,7 +937,6 @@ function stopRecording() {
 }
 
 async function toggleRecording() {
-  unlockAudio();
   if (mediaRecorder && mediaRecorder.state === "recording") {
     stopRecording();
     return;
