@@ -130,6 +130,14 @@ DISABLE_WHISPER = DEMO_MODE or os.environ.get(
     "JARVIS_DISABLE_WHISPER", ""
 ).strip().lower() in ("1", "true", "yes")
 
+# --- Dashboard administrateur (IP + conversations utilisateurs) ---
+ADMIN_PASSWORD = os.environ.get("JARVIS_ADMIN_PASSWORD", "").strip()
+ANALYTICS_ENABLED = os.environ.get("JARVIS_ANALYTICS", "1").strip().lower() not in (
+    "0",
+    "false",
+    "no",
+)
+
 # Limite l'historique envoye au modele (moins de tokens = reponse plus rapide).
 HISTORY_MAX = int(os.environ.get("JARVIS_HISTORY_MAX", "8"))
 CLOUD_MAX_TOKENS = int(os.environ.get("JARVIS_CLOUD_MAX_TOKENS", "400"))

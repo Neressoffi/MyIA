@@ -18,3 +18,5 @@ services:
         value: "3.12.7"
       - key: GROQ_API_KEY
         sync: false
+      - key: JARVIS_ADMIN_PASSWORD
+        sync: false

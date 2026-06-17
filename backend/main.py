@@ -17,13 +17,13 @@ from pathlib import Path
 from typing import List, Optional
 
 import httpx
-from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import config, diagnostic, documents, memoire, outils, rag, securite, vision
+from . import analytics, config, diagnostic, documents, memoire, outils, rag, securite, vision
 
 app = FastAPI(title="JARVIS - Assistant IA local")
 
@@ -150,6 +150,10 @@ class AuthPasswordRequest(BaseModel):
     confirmation: str
 
 
+class AdminLoginRequest(BaseModel):
+    mot_de_passe: str
+
+
 # --------------------------------------------------------------------------
 # Protection : authentification + en-tetes de securite
 # --------------------------------------------------------------------------
@@ -162,16 +166,68 @@ _ROUTES_API_PUBLIQUES = {
     "/api/auth/login",
     "/api/auth/check",
     "/api/health",
+    "/api/admin/login",
+    "/api/admin/status",
 }
 
 
-def _erreur_stream(message: str):
+def _erreur_stream(message: str, conv_id: str = ""):
     """Reponse SSE immediate avec un message d'erreur."""
 
     async def gen():
         yield _sse({"erreur": message})
+        if conv_id:
+            analytics.fin_conversation(conv_id, "", message)
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+def _envelopper_sse_log(gen, conv_id: str):
+    """Enregistre la reponse complete a la fin du flux SSE."""
+
+    async def logged():
+        full = ""
+        erreur = ""
+        meta: dict = {}
+        async for chunk in gen:
+            yield chunk
+            if not isinstance(chunk, str):
+                continue
+            for line in chunk.split("\n"):
+                line = line.strip()
+                if not line.startswith("data:"):
+                    continue
+                try:
+                    ev = json.loads(line[5:].strip())
+                except Exception:  # noqa: BLE001
+                    continue
+                if ev.get("token"):
+                    full += ev["token"]
+                doc = ev.get("document") or {}
+                if doc.get("apercu"):
+                    full = doc["apercu"]
+                    meta["type"] = "document"
+                if ev.get("erreur"):
+                    erreur = str(ev["erreur"])
+                if ev.get("modele"):
+                    meta["modele"] = ev["modele"]
+
+        analytics.fin_conversation(conv_id, full, erreur, meta or None)
+
+    return logged
+
+
+def _piece_jointe_nom(req: ChatRequest) -> Optional[str]:
+    if req.piece_jointe and req.piece_jointe.nom:
+        return req.piece_jointe.nom
+    if req.image_jointe and req.image_jointe.nom:
+        return req.image_jointe.nom
+    return None
+
+
+def _sse_response(gen, conv_id: str = ""):
+    flux = _envelopper_sse_log(gen, conv_id) if conv_id else gen
+    return StreamingResponse(flux, media_type="text/event-stream")
 
 
 def _message_cle_manquante() -> str:
@@ -184,6 +240,13 @@ def _message_cle_manquante() -> str:
 @app.middleware("http")
 async def protection_globale(request, call_next):
     path = request.url.path
+
+    # Routes admin : mot de passe dedie (pas le mot de passe utilisateur).
+    if path.startswith("/api/admin/") and path not in ("/api/admin/login", "/api/admin/status"):
+        token = analytics.extraire_token_admin(request.headers.get("authorization"))
+        if not analytics.admin_session_valide(token):
+            return JSONResponse({"detail": "Acces admin refuse."}, status_code=401)
+
     if path.startswith("/api/") and path not in _ROUTES_API_PUBLIQUES:
         token = securite.extraire_token(request.headers.get("authorization"))
         if not securite.session_valide(token):
@@ -193,6 +256,24 @@ async def protection_globale(request, call_next):
             return JSONResponse({"detail": "Origine non autorisee."}, status_code=403)
 
     response = await call_next(request)
+
+    # Journal des visites API (hors admin).
+    if config.ANALYTICS_ENABLED and not path.startswith("/api/admin/"):
+        try:
+            ip = analytics.client_ip(request)
+            ua = request.headers.get("user-agent", "")
+            if (
+                path.startswith("/api/")
+                and request.method in ("GET", "POST")
+            ):
+                analytics.enregistrer_visite(ip, path, ua)
+            elif request.method == "GET" and (
+                path in ("/", "/index.html", "/admin.html") or path.endswith(".html")
+            ):
+                analytics.enregistrer_visite(ip, path, ua)
+        except Exception:  # noqa: BLE001
+            pass
+
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
@@ -317,6 +398,45 @@ async def auth_password(req: AuthPasswordRequest):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True}
+
+
+# --------------------------------------------------------------------------
+# Dashboard administrateur (IP + conversations)
+# --------------------------------------------------------------------------
+@app.get("/api/admin/status")
+async def admin_status():
+    return {
+        "configure": analytics.admin_configure(),
+        "analytics": config.ANALYTICS_ENABLED,
+    }
+
+
+@app.post("/api/admin/login")
+async def admin_login(req: AdminLoginRequest):
+    try:
+        token = analytics.admin_connecter(req.mot_de_passe)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    return {"ok": True, "token": token}
+
+
+@app.get("/api/admin/rapport")
+async def admin_rapport(authorization: Optional[str] = Header(None)):
+    token = analytics.extraire_token_admin(authorization)
+    if not analytics.admin_session_valide(token):
+        raise HTTPException(status_code=401, detail="Acces admin refuse.")
+    return analytics.rapport()
+
+
+@app.get("/api/admin/conversation/{conv_id}")
+async def admin_conversation(conv_id: str, authorization: Optional[str] = Header(None)):
+    token = analytics.extraire_token_admin(authorization)
+    if not analytics.admin_session_valide(token):
+        raise HTTPException(status_code=401, detail="Acces admin refuse.")
+    conv = analytics.conversation_par_id(conv_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation introuvable.")
+    return conv
 
 
 # --------------------------------------------------------------------------
@@ -777,7 +897,7 @@ async def _construire_systeme(
 
 
 @app.post("/api/chat")
-async def chat(req: ChatRequest):
+async def chat(req: ChatRequest, request: Request):
     """Discussion en streaming : IA cloud rapide si possible, sinon modele local.
 
     Enrichie par la memoire persistante, les documents (RAG) et les outils
@@ -793,10 +913,17 @@ async def chat(req: ChatRequest):
             question = m.content
             break
 
+    ip = analytics.client_ip(request)
+    ua = request.headers.get("user-agent", "")
+    pj = _piece_jointe_nom(req)
+
     _capter_memoire(question)
 
     # --- Branche document : CV, PDF, lettre (creation ou modification) ---
     type_doc_demande = _demande_document(question, req.piece_jointe)
+    type_action = "document" if type_doc_demande else ("vision" if req.image_jointe else "chat")
+    conv_id = analytics.debut_conversation(ip, question, ua, pj, type_action)
+
     if type_doc_demande and not req.image_jointe:
 
         async def stream_document():
@@ -847,7 +974,7 @@ async def chat(req: ChatRequest):
             except Exception as exc:  # noqa: BLE001
                 yield _sse({"erreur": str(exc)})
 
-        return StreamingResponse(stream_document(), media_type="text/event-stream")
+        return _sse_response(stream_document(), conv_id)
 
     systeme, sources = await _construire_systeme(
         question, req.piece_jointe, req.image_jointe
@@ -865,7 +992,7 @@ async def chat(req: ChatRequest):
     rapide = _question_rapide(question, req.piece_jointe) and not req.image_jointe
     if securite.mode_demo():
         if not config.CLOUD_API_KEY:
-            return _erreur_stream(_message_cle_manquante())
+            return _erreur_stream(_message_cle_manquante(), conv_id)
         utiliser_cloud = True
     else:
         utiliser_cloud = _cloud_autorise() and (
@@ -875,7 +1002,7 @@ async def chat(req: ChatRequest):
     # --- Branche vision : image jointe ---
     if req.image_jointe and req.image_jointe.base64.strip():
         if securite.mode_demo() and not config.CLOUD_API_KEY:
-            return _erreur_stream(_message_cle_manquante())
+            return _erreur_stream(_message_cle_manquante(), conv_id)
         if securite.mode_demo():
             utiliser_cloud = True
         if utiliser_cloud:
@@ -920,7 +1047,7 @@ async def chat(req: ChatRequest):
                     )
                 yield _sse({"erreur": msg})
 
-        return StreamingResponse(stream_vision(), media_type="text/event-stream")
+        return _sse_response(stream_vision(), conv_id)
 
     messages = [{"role": "system", "content": systeme}]
     messages += [{"role": m.role, "content": m.content} for m in historique]
@@ -973,7 +1100,7 @@ async def chat(req: ChatRequest):
             else:
                 yield _sse({"erreur": msg})
 
-    return StreamingResponse(stream_tokens(), media_type="text/event-stream")
+    return _sse_response(stream_tokens(), conv_id)
 
 
 @app.post("/api/tts")
@@ -1589,11 +1716,15 @@ def _titre_auto(texte: str, titre: str) -> str:
 
 
 @app.post("/api/document")
-async def document(req: DocumentRequest):
+async def document(req: DocumentRequest, request: Request):
     """Redige ou modifie un document (CV, lettre, rapport...) en Markdown."""
     instruction = (req.instruction or "").strip()
     if not instruction:
         raise HTTPException(status_code=400, detail="demande manquante")
+
+    ip = analytics.client_ip(request)
+    ua = request.headers.get("user-agent", "")
+    conv_id = analytics.debut_conversation(ip, instruction, ua, None, "document")
 
     source = (req.source_texte or "").strip()
     type_doc = (req.type_doc or "auto").lower()
@@ -1621,6 +1752,7 @@ async def document(req: DocumentRequest):
         texte = _nettoyer_sortie(texte).strip()
         if not texte:
             raise RuntimeError("le document genere est vide")
+        analytics.fin_conversation(conv_id, texte[:12000], "", {"mode": mode, "type_doc": type_doc})
         return {
             "texte": texte,
             "titre": _titre_auto(texte, req.titre or ""),
@@ -1630,6 +1762,7 @@ async def document(req: DocumentRequest):
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
+        analytics.fin_conversation(conv_id, "", str(exc)[:500])
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 

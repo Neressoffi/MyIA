@@ -11,6 +11,7 @@ __pycache__/
 # Cle API privee (ne jamais partager)
 cle_api.txt
 cle_image.txt
+admin_password.txt
 .env
 .jarvis_auth
 
