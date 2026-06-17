@@ -621,6 +621,18 @@ textarea#input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(4
   color: #b8e8ff;
 }
 
+.btn-listen {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 200, 255, 0.45);
+  background: rgba(0, 120, 200, 0.2);
+  color: #b8e8ff;
+  cursor: pointer;
+}
+
 /* --- Ecran de verrouillage securise --- */
 .lock-screen {
   position: fixed; inset: 0; z-index: 9999;

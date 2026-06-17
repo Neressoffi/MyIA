@@ -452,34 +452,80 @@ function _utterance(text, voice) {
 let currentAudio = null;
 let audioUnlocked = false;
 
+// Son silencieux pour debloquer l'audio sur iOS/Android.
+const SILENT_AUDIO = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+
 function isMobileDevice() {
   return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
     || (navigator.maxTouchPoints > 1 && window.matchMedia("(max-width: 900px)").matches);
 }
 
-/** Debloque l'audio sur mobile (iOS bloque sans geste utilisateur). */
+/** Debloque l'audio (a appeler a chaque envoi / clic micro). */
 function unlockAudio() {
-  if (audioUnlocked) return;
-  audioUnlocked = true;
   try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (Ctx) {
-      const ctx = new Ctx();
-      ctx.resume().catch(() => {});
-    }
+    const a = new Audio(SILENT_AUDIO);
+    a.volume = 0.001;
+    a.setAttribute("playsinline", "true");
+    a.play().catch(() => {});
   } catch {}
   if ("speechSynthesis" in window) {
-    try { speechSynthesis.resume(); } catch {}
-    speechSynthesis.getVoices();
+    try {
+      speechSynthesis.getVoices();
+      const v = pickVoice() || fiableLocalVoice();
+      const u = new SpeechSynthesisUtterance(" ");
+      if (v) { u.voice = v; u.lang = v.lang; }
+      u.volume = 0.01;
+      u.rate = 2;
+      speechSynthesis.speak(u);
+      speechSynthesis.resume();
+    } catch {}
   }
+  audioUnlocked = true;
 }
 
 function preferBrowserTTS() {
   return isMobileDevice();
 }
 
-document.addEventListener("touchstart", unlockAudio, { once: true, passive: true });
-document.addEventListener("click", unlockAudio, { once: true });
+/** Voix mobile : lecture complete par phrases (fiable sur iOS/Safari). */
+function mobileSpeakFull(text) {
+  if (!text?.trim() || !voiceSettings.enabled) return;
+  if (!("speechSynthesis" in window)) return;
+  stopSpeaking();
+  const chunks = text.trim().match(/[^.!?…\n]+[.!?…\n]*|[^.!?…\n]+/g) || [text.trim()];
+  let i = 0;
+  const next = () => {
+    if (i >= chunks.length) { setState("idle"); return; }
+    const part = chunks[i++].trim();
+    if (!part) { next(); return; }
+    const u = _utterance(part, pickVoice() || fiableLocalVoice());
+    u.onstart = () => setState("speaking");
+    u.onend = next;
+    u.onerror = next;
+    speechSynthesis.speak(u);
+    setTimeout(() => { try { speechSynthesis.resume(); } catch {} }, 100);
+  };
+  speechSynthesis.cancel();
+  setTimeout(next, 120);
+}
+
+function addListenButton(el, text) {
+  if (!isMobileDevice() || !text?.trim() || !el) return;
+  if (el.querySelector(".btn-listen")) return;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn-listen";
+  btn.textContent = "🔊 Écouter";
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    unlockAudio();
+    mobileSpeakFull(text);
+  });
+  el.appendChild(btn);
+}
+
+document.addEventListener("touchstart", unlockAudio, { passive: true });
+document.addEventListener("click", unlockAudio);
 
 // ----------------------------------------------------------------------
 // Voix EN FLUX : JARVIS parle phrase par phrase PENDANT qu'il ecrit.
@@ -568,11 +614,12 @@ async function playNextTTS() {
 // Demarre une nouvelle lecture en flux (a appeler avant de streamer).
 function resetStreamingTTS() {
   stopSpeaking();
-  if (voiceSettings.enabled) streamingTTS = true;
+  if (voiceSettings.enabled && !isMobileDevice()) streamingTTS = true;
 }
 
 // Alimente la voix au fil de l'eau : parle des que possible (phrases ou segments courts).
 function feedStreamingTTS(full) {
+  if (isMobileDevice()) return;
   if (!streamingTTS || !voiceSettings.enabled) return;
   const pending = full.slice(spokenIndex);
   // Frontieres rapides : fin de phrase, virgule, ou segment >= 40 caracteres.
@@ -594,6 +641,11 @@ function feedStreamingTTS(full) {
 // Termine la lecture en flux : on prononce le reste (derniere phrase).
 function endStreamingTTS(full) {
   if (!voiceSettings.enabled) { if (!ttsBusy) setState("idle"); return; }
+  if (isMobileDevice()) {
+    streamingTTS = false;
+    mobileSpeakFull(full);
+    return;
+  }
   const reste = full.slice(spokenIndex).trim();
   if (reste) enqueueTTS(reste);
   streamingTTS = false;
@@ -604,6 +656,12 @@ function endStreamingTTS(full) {
 //                  2) repli sur la voix du navigateur si hors-ligne.
 async function speak(text) {
   if (!voiceSettings.enabled) { setState("idle"); return; }
+  unlockAudio();
+  if (isMobileDevice()) {
+    stopSpeaking();
+    mobileSpeakFull(text);
+    return;
+  }
   stopSpeaking();
 
   try {
@@ -800,7 +858,8 @@ async function sendMessage(text, opts = {}) {
 
     if (full) {
       history.push({ role: "assistant", content: full });
-      endStreamingTTS(full); // prononce la derniere phrase restante
+      endStreamingTTS(full);
+      if (isMobileDevice()) addListenButton(botEl, full);
     } else {
       setState("idle");
     }
