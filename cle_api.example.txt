@@ -1,0 +1,7 @@
+# Copiez ce fichier en cle_api.txt UNIQUEMENT sur votre PC local.
+# Ne commitez JAMAIS cle_api.txt sur Git.
+#
+# Cle API Groq gratuite : https://console.groq.com/keys
+# Collez votre cle sur la ligne suivante (sans guillemets) :
+
+votre_cle_groq_ici

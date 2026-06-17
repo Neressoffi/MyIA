@@ -1,0 +1,22 @@
+# Environnement Python
+.venv/
+__pycache__/
+*.pyc
+
+# Modeles et caches volumineux
+*.bin
+*.gguf
+.cache/
+
+# Cle API privee (ne jamais partager)
+cle_api.txt
+cle_image.txt
+.env
+.jarvis_auth
+
+# Donnees privees (memoire + documents indexes)
+donnees/
+
+# Systeme
+.DS_Store
+Thumbs.db

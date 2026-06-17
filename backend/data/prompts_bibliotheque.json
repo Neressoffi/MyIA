@@ -1,0 +1,572 @@
+{
+  "version": 1,
+  "total": 110,
+  "categories": [
+    "Conversation",
+    "Code & Tech",
+    "Redaction",
+    "Education",
+    "Business",
+    "Creativite",
+    "Sciences",
+    "Sante & Bien-etre",
+    "Droit & Admin",
+    "Finance",
+    "Langues",
+    "Analyse",
+    "Productivite",
+    "Multimedia"
+  ],
+  "prompts": [
+    {
+      "c": "Conversation",
+      "t": "Se presenter",
+      "p": "Presente-toi en 3 phrases : qui tu es, ce que tu fais, comment tu peux m aider."
+    },
+    {
+      "c": "Conversation",
+      "t": "Resume de conversation",
+      "p": "Resume notre echange en 5 points clairs."
+    },
+    {
+      "c": "Conversation",
+      "t": "Conseil personnalise",
+      "p": "Donne-moi un conseil personnalise sur : "
+    },
+    {
+      "c": "Conversation",
+      "t": "Motivation",
+      "p": "Motivate-moi pour accomplir : "
+    },
+    {
+      "c": "Conversation",
+      "t": "Reformuler",
+      "p": "Reformule cette idee plus clairement : "
+    },
+    {
+      "c": "Conversation",
+      "t": "Objection",
+      "p": "Reponds a cette objection de facon convaincante : "
+    },
+    {
+      "c": "Conversation",
+      "t": "Ton adapte",
+      "p": "Reponds avec empathie a ce message : "
+    },
+    {
+      "c": "Conversation",
+      "t": "Question de suivi",
+      "p": "Quelle question pertinente poser apres : "
+    },
+    {
+      "c": "Conversation",
+      "t": "Synthese rapide",
+      "p": "En une phrase, l essentiel de : "
+    },
+    {
+      "c": "Conversation",
+      "t": "Check-list",
+      "p": "Fais une check-list actionnable pour : "
+    },
+    {
+      "c": "Code & Tech",
+      "t": "Corriger un bug",
+      "p": "Analyse ce code, trouve le bug et propose la correction :\n"
+    },
+    {
+      "c": "Code & Tech",
+      "t": "Fonction Python",
+      "p": "Ecris une fonction Python propre qui "
+    },
+    {
+      "c": "Code & Tech",
+      "t": "API REST",
+      "p": "Concevoir une API REST pour "
+    },
+    {
+      "c": "Code & Tech",
+      "t": "SQL",
+      "p": "Ecris une requete SQL pour "
+    },
+    {
+      "c": "Code & Tech",
+      "t": "Debug erreur",
+      "p": "Explique cette erreur et comment la corriger : "
+    },
+    {
+      "c": "Code & Tech",
+      "t": "Refactoring",
+      "p": "Propose un refactoring propre de ce code :\n"
+    },
+    {
+      "c": "Code & Tech",
+      "t": "Regex",
+      "p": "Ecris une expression reguliere pour "
+    },
+    {
+      "c": "Code & Tech",
+      "t": "Algorithme",
+      "p": "Explique l algorithme optimal pour "
+    },
+    {
+      "c": "Code & Tech",
+      "t": "Architecture",
+      "p": "Propose une architecture simple pour "
+    },
+    {
+      "c": "Code & Tech",
+      "t": "Tests unitaires",
+      "p": "Ecris des tests unitaires pour "
+    },
+    {
+      "c": "Code & Tech",
+      "t": "Git",
+      "p": "Quelle strategie Git pour "
+    },
+    {
+      "c": "Code & Tech",
+      "t": "Securite code",
+      "p": "Audite ce code pour failles de securite :\n"
+    },
+    {
+      "c": "Code & Tech",
+      "t": "Docker",
+      "p": "Donne un Dockerfile minimal pour "
+    },
+    {
+      "c": "Code & Tech",
+      "t": "Frontend JS",
+      "p": "Ecris du JavaScript moderne pour "
+    },
+    {
+      "c": "Code & Tech",
+      "t": "Automatisation",
+      "p": "Script d automatisation pour "
+    },
+    {
+      "c": "Redaction",
+      "t": "Email pro",
+      "p": "Redige un email professionnel pour "
+    },
+    {
+      "c": "Redaction",
+      "t": "Lettre motivation",
+      "p": "Redige une lettre de motivation pour "
+    },
+    {
+      "c": "Redaction",
+      "t": "Post LinkedIn",
+      "p": "Redige un post LinkedIn engageant sur "
+    },
+    {
+      "c": "Redaction",
+      "t": "Article blog",
+      "p": "Redige un article de blog structure sur "
+    },
+    {
+      "c": "Redaction",
+      "t": "Corriger texte",
+      "p": "Corrige orthographe et style :\n"
+    },
+    {
+      "c": "Redaction",
+      "t": "Resume executif",
+      "p": "Fais un resume executif de :\n"
+    },
+    {
+      "c": "Redaction",
+      "t": "Speech",
+      "p": "Ecris un discours de 2 minutes sur "
+    },
+    {
+      "c": "Redaction",
+      "t": "Storytelling",
+      "p": "Raconte une histoire captivante sur "
+    },
+    {
+      "c": "Redaction",
+      "t": "Titre accrocheur",
+      "p": "Propose 10 titres accrocheurs pour "
+    },
+    {
+      "c": "Redaction",
+      "t": "Reecriture",
+      "p": "Reecris ce texte plus fluide et naturel :\n"
+    },
+    {
+      "c": "Education",
+      "t": "Expliquer simplement",
+      "p": "Explique comme a un debutant : "
+    },
+    {
+      "c": "Education",
+      "t": "Fiche revision",
+      "p": "Cree une fiche de revision sur "
+    },
+    {
+      "c": "Education",
+      "t": "Quiz",
+      "p": "Genere 10 questions quiz sur "
+    },
+    {
+      "c": "Education",
+      "t": "Analogie",
+      "p": "Explique avec une analogie simple : "
+    },
+    {
+      "c": "Education",
+      "t": "Plan cours",
+      "p": "Plan de cours en 5 parties sur "
+    },
+    {
+      "c": "Education",
+      "t": "Erreurs courantes",
+      "p": "Quelles erreurs eviter en apprenant "
+    },
+    {
+      "c": "Education",
+      "t": "Ressources",
+      "p": "Quelles ressources pour apprendre "
+    },
+    {
+      "c": "Education",
+      "t": "Comparaison",
+      "p": "Compare et explique les differences entre "
+    },
+    {
+      "c": "Education",
+      "t": "Chronologie",
+      "p": "Donne la chronologie des evenements de "
+    },
+    {
+      "c": "Education",
+      "t": "Glossaire",
+      "p": "Definis les termes cles de "
+    },
+    {
+      "c": "Business",
+      "t": "Business plan",
+      "p": "Structure un mini business plan pour "
+    },
+    {
+      "c": "Business",
+      "t": "Pitch startup",
+      "p": "Ecris un pitch startup en 60 secondes pour "
+    },
+    {
+      "c": "Business",
+      "t": "SWOT",
+      "p": "Analyse SWOT de "
+    },
+    {
+      "c": "Business",
+      "t": "Strategie marketing",
+      "p": "Strategie marketing pour "
+    },
+    {
+      "c": "Business",
+      "t": "Negociation",
+      "p": "Conseils de negociation pour "
+    },
+    {
+      "c": "Business",
+      "t": "Reunion",
+      "p": "Ordre du jour de reunion pour "
+    },
+    {
+      "c": "Business",
+      "t": "KPI",
+      "p": "Quels KPI suivre pour "
+    },
+    {
+      "c": "Business",
+      "t": "Concurrence",
+      "p": "Analyse concurrentielle de "
+    },
+    {
+      "c": "Business",
+      "t": "Pricing",
+      "p": "Strategie de prix pour "
+    },
+    {
+      "c": "Business",
+      "t": "CRM",
+      "p": "Processus commercial pour "
+    },
+    {
+      "c": "Creativite",
+      "t": "10 idees",
+      "p": "Donne 10 idees originales sur "
+    },
+    {
+      "c": "Creativite",
+      "t": "Nom de marque",
+      "p": "Propose 15 noms de marque pour "
+    },
+    {
+      "c": "Creativite",
+      "t": "Slogan",
+      "p": "Cree 10 slogans pour "
+    },
+    {
+      "c": "Creativite",
+      "t": "Scenario",
+      "p": "Ecris un scenario creatif sur "
+    },
+    {
+      "c": "Creativite",
+      "t": "Brainstorm",
+      "p": "Brainstorming sans limite sur "
+    },
+    {
+      "c": "Creativite",
+      "t": "Personnage",
+      "p": "Cree un personnage detaille pour "
+    },
+    {
+      "c": "Creativite",
+      "t": "Monde fictif",
+      "p": "Decris un monde fictif ou "
+    },
+    {
+      "c": "Creativite",
+      "t": "Poeme",
+      "p": "Ecris un court poeme sur "
+    },
+    {
+      "c": "Creativite",
+      "t": "Jeu video",
+      "p": "Concept de jeu video sur "
+    },
+    {
+      "c": "Creativite",
+      "t": "Campagne pub",
+      "p": "Idees de campagne publicitaire pour "
+    },
+    {
+      "c": "Sciences",
+      "t": "Explication scientifique",
+      "p": "Explique scientifiquement : "
+    },
+    {
+      "c": "Sciences",
+      "t": "Experience",
+      "p": "Decris une experience simple pour demontrer "
+    },
+    {
+      "c": "Sciences",
+      "t": "Hypothese",
+      "p": "Formule une hypothese sur "
+    },
+    {
+      "c": "Sciences",
+      "t": "Environnement",
+      "p": "Impact environnemental de "
+    },
+    {
+      "c": "Sciences",
+      "t": "Espace",
+      "p": "Explique en termes simples "
+    },
+    {
+      "c": "Sciences",
+      "t": "Biologie",
+      "p": "Explique le fonctionnement biologique de "
+    },
+    {
+      "c": "Sciences",
+      "t": "Physique",
+      "p": "Explique le principe physique de "
+    },
+    {
+      "c": "Sciences",
+      "t": "Chimie",
+      "p": "Reaction chimique impliquee dans "
+    },
+    {
+      "c": "Sciences",
+      "t": "Donnees",
+      "p": "Interprete ces donnees scientifiques :\n"
+    },
+    {
+      "c": "Sciences",
+      "t": "Innovation",
+      "p": "Quelles innovations recentes concernent "
+    },
+    {
+      "c": "Sante & Bien-etre",
+      "t": "Habitudes saines",
+      "p": "Habitudes saines pour "
+    },
+    {
+      "c": "Sante & Bien-etre",
+      "t": "Routine sport",
+      "p": "Routine sportive debutant pour "
+    },
+    {
+      "c": "Sante & Bien-etre",
+      "t": "Stress",
+      "p": "Techniques anti-stress pour "
+    },
+    {
+      "c": "Sante & Bien-etre",
+      "t": "Sommeil",
+      "p": "Conseils sommeil pour "
+    },
+    {
+      "c": "Sante & Bien-etre",
+      "t": "Nutrition",
+      "p": "Conseils nutrition equilibree pour "
+    },
+    {
+      "c": "Droit & Admin",
+      "t": "Lettre admin",
+      "p": "Redige une lettre administrative pour "
+    },
+    {
+      "c": "Droit & Admin",
+      "t": "Droits",
+      "p": "Quels sont mes droits concernant "
+    },
+    {
+      "c": "Droit & Admin",
+      "t": "Contrat",
+      "p": "Points a verifier dans un contrat de "
+    },
+    {
+      "c": "Droit & Admin",
+      "t": "Procedure",
+      "p": "Etapes administratives pour "
+    },
+    {
+      "c": "Droit & Admin",
+      "t": "Resume legal",
+      "p": "Resume les points juridiques cles de "
+    },
+    {
+      "c": "Finance",
+      "t": "Budget",
+      "p": "Aide-moi a faire un budget pour "
+    },
+    {
+      "c": "Finance",
+      "t": "Epargne",
+      "p": "Strategie d epargne pour "
+    },
+    {
+      "c": "Finance",
+      "t": "Investissement",
+      "p": "Explique les bases d investissement dans "
+    },
+    {
+      "c": "Finance",
+      "t": "Analyse financiere",
+      "p": "Analyse financiere simple de "
+    },
+    {
+      "c": "Finance",
+      "t": "Economies",
+      "p": "Comment reduire les depenses sur "
+    },
+    {
+      "c": "Langues",
+      "t": "Traduction EN",
+      "p": "Traduis naturellement en anglais :\n"
+    },
+    {
+      "c": "Langues",
+      "t": "Traduction ES",
+      "p": "Traduis en espagnol :\n"
+    },
+    {
+      "c": "Langues",
+      "t": "Grammaire FR",
+      "p": "Corrige la grammaire francaise :\n"
+    },
+    {
+      "c": "Langues",
+      "t": "Vocabulaire",
+      "p": "Liste de vocabulaire utile pour "
+    },
+    {
+      "c": "Langues",
+      "t": "Conversation EN",
+      "p": "Dialogue en anglais sur "
+    },
+    {
+      "c": "Analyse",
+      "t": "Pros/cons",
+      "p": "Liste avantages et inconvenients de "
+    },
+    {
+      "c": "Analyse",
+      "t": "Critique",
+      "p": "Analyse critique de "
+    },
+    {
+      "c": "Analyse",
+      "t": "Comparaison produits",
+      "p": "Compare objectivement "
+    },
+    {
+      "c": "Analyse",
+      "t": "Risques",
+      "p": "Quels risques pour "
+    },
+    {
+      "c": "Analyse",
+      "t": "Decision",
+      "p": "Aide-moi a decider entre "
+    },
+    {
+      "c": "Productivite",
+      "t": "Plan journee",
+      "p": "Organise ma journee pour "
+    },
+    {
+      "c": "Productivite",
+      "t": "Priorites",
+      "p": "Classe par priorite : "
+    },
+    {
+      "c": "Productivite",
+      "t": "Methode Pomodoro",
+      "p": "Plan Pomodoro pour "
+    },
+    {
+      "c": "Productivite",
+      "t": "Objectifs SMART",
+      "p": "Objectifs SMART pour "
+    },
+    {
+      "c": "Productivite",
+      "t": "To-do",
+      "p": "Liste de taches pour "
+    },
+    {
+      "c": "Multimedia",
+      "t": "Prompt image",
+      "p": "Dessine une image de "
+    },
+    {
+      "c": "Multimedia",
+      "t": "Script video",
+      "p": "Script video 2 min sur "
+    },
+    {
+      "c": "Multimedia",
+      "t": "Storyboard",
+      "p": "Storyboard en 6 scenes pour "
+    },
+    {
+      "c": "Multimedia",
+      "t": "Podcast",
+      "p": "Plan d episode podcast sur "
+    },
+    {
+      "c": "Multimedia",
+      "t": "Document PDF",
+      "p": "Redige un rapport PDF sur "
+    }
+  ]
+}

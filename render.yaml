@@ -1,0 +1,19 @@
+# Deploiement en un clic sur https://render.com
+# 1. Connectez votre repo GitHub
+# 2. Render detecte ce fichier automatiquement
+# 3. Ajoutez GROQ_API_KEY dans les variables d'environnement
+
+services:
+  - type: web
+    name: jarvis-demo
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements-cloud.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: JARVIS_DEMO
+        value: "1"
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      - key: GROQ_API_KEY
+        sync: false
