@@ -1,7 +1,7 @@
 # Deploiement en un clic sur https://render.com
 # 1. Connectez votre repo GitHub
 # 2. Render detecte ce fichier automatiquement
-# 3. Ajoutez GROQ_API_KEY dans les variables d'environnement
+# 3. Ajoutez GROQ_API_KEY et JARVIS_ADMIN_PASSWORD dans Environment
 
 services:
   - type: web
@@ -18,5 +18,20 @@ services:
         value: "3.12.7"
       - key: GROQ_API_KEY
         sync: false
+      - key: JARVIS_ADMIN_PASSWORD
+        sync: false
+
+  - type: web
+    name: jarvis-dashboard
+    runtime: python
+    plan: free
+    healthCheckPath: /api/admin/status
+    buildCommand: pip install -r requirements-cloud.txt
+    startCommand: uvicorn backend.admin_server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: JARVIS_DEMO
+        value: "1"
+      - key: PYTHON_VERSION
+        value: "3.12.7"
       - key: JARVIS_ADMIN_PASSWORD
         sync: false
