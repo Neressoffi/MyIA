@@ -14,12 +14,12 @@ KEEP_ALIVE = os.environ.get("JARVIS_KEEP_ALIVE", "30m")
 # IMPORTANT : utilises a l'identique au prechauffage ET au chat, pour eviter
 # qu'Ollama recharge le modele (ce qui ralentirait la 1ere reponse).
 GEN_OPTIONS = {
-    "temperature": 0.25,
-    "top_p": 0.88,
-    "top_k": 35,
-    "repeat_penalty": 1.12,
-    "num_ctx": 1536,
-    "num_predict": 240,
+    "temperature": 0.18,
+    "top_p": 0.92,
+    "top_k": 40,
+    "repeat_penalty": 1.18,
+    "num_ctx": 8192,
+    "num_predict": 768,
     "num_thread": os.cpu_count() or 4,
 }
 
@@ -27,19 +27,35 @@ GEN_OPTIONS = {
 ASSISTANT_NAME = os.environ.get("JARVIS_NAME", "JARVIS")
 
 SYSTEM_PROMPT = (
-    f"Tu es {ASSISTANT_NAME}, compagnon IA inspire d'Iron Man : chaleureux, vif, "
-    "fiable, comme un ami brillant.\n\n"
-    "COHERENCE (prioritaire) :\n"
-    "- Reponds precisement a la question, en restant strictement sur le sujet.\n"
-    "- Tes phrases s'enchainent logiquement : une idee mene a la suivante.\n"
-    "- Tiens compte de TOUT l'historique : ne contredis pas ce qui a deja ete dit.\n"
-    "- Ne te repetes pas, ne radotes pas, n'invente pas de mots ou d'infos.\n"
-    "- Si tu n'es pas sur, dis-le honnetement au lieu d'improviser.\n\n"
-    "POLYVALENCE : tu maitrises tous les sujets (code, redaction, sciences, business, "
-    "creativite, sante, droit, finance, langues, analyse, productivite). Adapte ton "
-    "niveau et ton format a la demande.\n\n"
-    "STYLE : francais naturel et correct, tu tutoies. Concis mais complet. "
-    "Pas d'intro vide ('Bien sur', 'Voici'). Pas de 'En tant qu'IA'."
+    f"Tu es {ASSISTANT_NAME}, l'assistant IA le plus performant possible dans ce "
+    "systeme : niveau ingenieur IA / expert senior. Tu combines precision technique, "
+    "clarte pedagogique et utilite immediate.\n\n"
+    "PROTOCOLE MENTAL (interne, ne l'ecris pas) :\n"
+    "A) Intention : que veut vraiment l'utilisateur ?\n"
+    "B) Contexte : historique, fichiers, memoire, outils — quoi utiliser ?\n"
+    "C) Plan : 2-5 points cles avant de repondre.\n"
+    "D) Reponse : directe, exacte, actionnable.\n"
+    "E) Controle : ai-je repondu a TOUTE la question ? ai-je invente ?\n\n"
+    "COMPREHENSION :\n"
+    "- Interprete les references (« ca », « celui-la », « et pour… ») via l'historique.\n"
+    "- Ambiguite : une question courte OU meilleure reponse + hypothese explicite.\n"
+    "- Multi-demandes : traite-les toutes, dans l'ordre.\n"
+    "- Distingue : fait / opinion / speculation — ne melange pas.\n\n"
+    "EXCELLENCE DE REPONSE :\n"
+    "- Ouvre par la reponse utile (pas de preface).\n"
+    "- Puis details, etapes, exemples, pieges si pertinent.\n"
+    "- Code : correct, complet, pret a l'emploi, commente legerement si besoin.\n"
+    "- Zero filler, zero contradiction, zero repetition, zero invention.\n"
+    "- Si incertitude : dis-le + comment verifier.\n"
+    "- Adapte profondeur debutant ↔ expert selon le message.\n\n"
+    "CAPACITES CONCRETES :\n"
+    "- Tu peux creer des sites internet complets (HTML/CSS/JS) quand on te le demande.\n"
+    "- Tu peux produire CV, PDF, lettres, code, plans, analyses.\n"
+    "- Fidélité absolue : fais EXACTEMENT ce qui est demande, sans substituer "
+    "un autre livrable.\n\n"
+    "STYLE : francais impeccable, tutoiement, dense et elegant. "
+    "Interdit : « Bien sur », « Absolument », « Voici », « En tant qu'IA », "
+    "melange de langues (sauf traduction demandee)."
 )
 
 # --- Mode hybride : IA cloud rapide (en ligne) + repli local (hors-ligne) ---
@@ -49,15 +65,16 @@ CLOUD_API_BASE = os.environ.get("JARVIS_CLOUD_BASE", "https://api.groq.com/opena
 # Cascade de modeles cloud GRATUITS : on essaie le plus puissant d'abord, et si
 # son quota journalier gratuit est atteint, on bascule automatiquement sur le
 # suivant. Chaque modele a son propre quota -> beaucoup plus d'autonomie gratuite.
+# Qualite d'abord : modeles puissants en tete, instant en secours / saluts.
 CLOUD_MODELS = [
     m.strip()
     for m in os.environ.get(
         "JARVIS_CLOUD_MODELS",
-        "llama-3.1-8b-instant,llama-3.3-70b-versatile,qwen/qwen3-32b",
+        "llama-3.3-70b-versatile,qwen/qwen3-32b,llama-3.1-8b-instant",
     ).split(",")
     if m.strip()
 ]
-# Modele le plus rapide (prioritaire pour le chat courant).
+# Modele le plus rapide (saluts uniquement).
 CLOUD_MODEL_RAPIDE = os.environ.get("JARVIS_CLOUD_RAPIDE", "llama-3.1-8b-instant")
 # Modele principal (affiche dans l'interface).
 CLOUD_MODEL = CLOUD_MODELS[0] if CLOUD_MODELS else "llama-3.3-70b-versatile"
@@ -101,8 +118,8 @@ def _charge_cle_image() -> str:
 IMAGE_API_KEY = _charge_cle_image()
 
 
-# --- Voix de JARVIS (synthese vocale naturelle, edge-tts, gratuit) ---
-# Voix neuronales francaises quasi humaines, choisies selon le visage.
+# --- Voix de JARVIS (style science-fiction / Iron Man, edge-tts) ---
+# Voix neuronales FR : rythme et tonalite ajustes cote serveur (cinema).
 VOIX_NATURELLES = {
     "homme": os.environ.get("JARVIS_VOIX_HOMME", "fr-FR-HenriNeural"),
     "femme": os.environ.get("JARVIS_VOIX_FEMME", "fr-FR-DeniseNeural"),
@@ -143,11 +160,17 @@ ADMIN_PORT = int(
     os.environ.get("JARVIS_ADMIN_PORT", os.environ.get("PORT_ADMIN", "8767"))
 )
 
-# Limite l'historique envoye au modele (moins de tokens = reponse plus rapide).
-HISTORY_MAX = int(os.environ.get("JARVIS_HISTORY_MAX", "8"))
-CLOUD_MAX_TOKENS = int(os.environ.get("JARVIS_CLOUD_MAX_TOKENS", "400"))
-# Texte max injecte pour un fichier joint au chat (moins = analyse plus rapide).
-CHAT_PIECE_MAX = int(os.environ.get("JARVIS_CHAT_PIECE_MAX", "6000"))
+# Historique long = coherence multi-tours elite.
+HISTORY_MAX = int(os.environ.get("JARVIS_HISTORY_MAX", "18"))
+# Budget tokens cloud (ajuste dynamiquement selon complexite dans main.py).
+CLOUD_MAX_TOKENS = int(os.environ.get("JARVIS_CLOUD_MAX_TOKENS", "1000"))
+CLOUD_MAX_TOKENS_COMPLEXE = int(os.environ.get("JARVIS_CLOUD_MAX_TOKENS_COMPLEXE", "1600"))
+CLOUD_MAX_TOKENS_RAPIDE = int(os.environ.get("JARVIS_CLOUD_MAX_TOKENS_RAPIDE", "220"))
+# Penalite de repetition (API cloud compatible OpenAI / Groq).
+CLOUD_FREQUENCY_PENALTY = float(os.environ.get("JARVIS_CLOUD_FREQ_PENALTY", "0.3"))
+CLOUD_PRESENCE_PENALTY = float(os.environ.get("JARVIS_CLOUD_PRES_PENALTY", "0.15"))
+# Texte max injecte pour un fichier joint au chat.
+CHAT_PIECE_MAX = int(os.environ.get("JARVIS_CHAT_PIECE_MAX", "8000"))
 
 # --- Securite et confidentialite ---
 # Taille max des fichiers uploades (Mo).

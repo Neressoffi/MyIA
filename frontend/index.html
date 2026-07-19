@@ -87,7 +87,7 @@
       </div>
     </header>
 
-    <!-- Coeur reactif type reacteur Arc -->
+    <!-- Visage holographique JARVIS (style Iron Man) -->
     <section class="hud">
       <div class="reactor" id="reactor" data-state="idle">
         <div class="ring ring-ticks"></div>
@@ -95,13 +95,19 @@
         <div class="ring ring-mid"></div>
         <div class="ring ring-inner"></div>
         <div class="reactor-glow"></div>
-        <img id="avatar" class="avatar" src="/avatar-femme.png" alt="Visage de JARVIS" />
+        <div class="face-stage">
+          <div class="face-scan" aria-hidden="true"></div>
+          <img id="avatar" class="avatar" src="/avatar-femme.png" alt="Visage de JARVIS" />
+          <div class="face-vignette" aria-hidden="true"></div>
+          <div class="face-mouth" aria-hidden="true"></div>
+        </div>
         <div class="waves" id="waves">
           <span></span><span></span><span></span><span></span><span></span>
           <span></span><span></span><span></span><span></span><span></span>
         </div>
       </div>
       <div class="hud-state" id="hud-state">En veille</div>
+      <p class="face-caption" id="face-caption">Interface visuelle · JARVIS</p>
       <div class="telemetry" id="telemetry">
         <span class="tele"><i>SYS</i><b id="tele-mode">—</b></span>
         <span class="tele-sep"></span>
@@ -114,7 +120,7 @@
     <main class="chat" id="chat">
       <div class="welcome" id="welcome">
         <h2>Bonjour, je suis JARVIS.</h2>
-        <p>Parle-moi avec le micro, ou écris-moi un message.</p>
+        <p>Parle, écris, ou demande un site web — je le crée pour toi.</p>
       </div>
     </main>
 
@@ -425,8 +431,8 @@
   <div class="modal-overlay" id="voice-modal">
     <div class="modal">
       <div class="modal-core"></div>
-      <h2 id="voice-modal-title">Configure la voix de JARVIS</h2>
-      <p class="modal-sub">Choisis le visage et la voix. En ligne, j'utilise une vraie voix naturelle (Henri pour l'homme, Denise pour la femme).</p>
+      <h2 id="voice-modal-title">Voix & visage JARVIS</h2>
+      <p class="modal-sub">Choisis un visage humain holographique et une voix style science-fiction (calme, précise, comme dans Iron Man).</p>
 
       <label class="field">
         <span>Apparence du visage</span>
@@ -467,6 +473,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=20260617f"></script>
+  <script src="/app.js?v=20260719sites"></script>
 </body>
 </html>

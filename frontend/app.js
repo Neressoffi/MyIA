@@ -270,10 +270,10 @@ function arreterTranscrireNavigateur() {
 // Etats du reacteur Arc : idle / listening / thinking / speaking
 // ----------------------------------------------------------------------
 const STATE_LABELS = {
-  idle: "En veille",
-  listening: "Je t'écoute…",
-  thinking: "…",
-  speaking: "JARVIS parle…",
+  idle: "Systèmes en veille",
+  listening: "Canal audio ouvert…",
+  thinking: "Analyse en cours…",
+  speaking: "Transmission vocale…",
 };
 function setState(state) {
   reactor.dataset.state = state;
@@ -374,12 +374,23 @@ function addMessage(role, text, extraClass = "") {
 const VOICE_DEFAULTS = { voiceURI: "", rate: 1.0, pitch: 1.0, enabled: true, gender: "femme" };
 const avatarImg = document.getElementById("avatar");
 const avatarOpts = document.querySelectorAll(".avatar-opt");
+const faceCaption = document.getElementById("face-caption");
 
 function applyAvatar() {
-  if (avatarImg) avatarImg.src = voiceSettings.gender === "homme" ? "/avatar-homme.png" : "/avatar-femme.png";
+  const bust = Date.now();
+  if (avatarImg) {
+    const src = voiceSettings.gender === "homme" ? "/avatar-homme.png" : "/avatar-femme.png";
+    avatarImg.src = `${src}?v=${bust}`;
+  }
   avatarOpts.forEach((b) => b.classList.toggle("selected", b.dataset.gender === voiceSettings.gender));
+  if (faceCaption) {
+    faceCaption.textContent = voiceSettings.gender === "homme"
+      ? "Interface visuelle · JARVIS · Homme"
+      : "Interface visuelle · JARVIS · Femme";
+  }
 }
 let voiceSettings = loadVoiceSettings();
+applyAvatar();
 
 function loadVoiceSettings() {
   try {
@@ -785,7 +796,8 @@ async function sendMessage(text, opts = {}) {
     inputEl.style.height = "auto";
   }
   history.push({ role: "user", content: text });
-  if (history.length > 24) history.splice(0, history.length - 24);
+  // Historique long cote client pour nourrir la coherence multi-tours serveur.
+  if (history.length > 36) history.splice(0, history.length - 36);
 
   setState("thinking");
   const botEl = addMessage("bot", jointeImg ? "👁️ J'analyse ton image…" : "…", "thinking");
@@ -847,6 +859,9 @@ async function sendMessage(text, opts = {}) {
         } else if (evt.document) {
           afficherDocumentChat(botEl, evt.document, text);
           full = evt.document.apercu || "";
+        } else if (evt.site) {
+          afficherSiteChat(botEl, evt.site);
+          full = `Site web créé : ${evt.site.titre || "Mon site"}`;
         }
       }
     }
@@ -1079,7 +1094,11 @@ ttsEnabled.addEventListener("change", () => {
 
 testVoiceBtn.addEventListener("click", () => {
   voiceSettings.voiceURI = voiceList.value;
-  speak("Bonjour, je suis JARVIS. Voici ma voix, dis-moi si elle te convient.");
+  speak(
+    voiceSettings.gender === "homme"
+      ? "Bonjour. Je suis JARVIS. Systèmes en ligne. Ma voix est calme, précise, prête à vous assister."
+      : "Bonjour. Je suis JARVIS. Systèmes en ligne. Ma voix est claire, précise, prête à vous assister."
+  );
 });
 
 saveVoiceBtn.addEventListener("click", () => {
@@ -1766,6 +1785,69 @@ function detectDocumentRequest(text) {
   if (doc && action) return { type: "generic", instruction: t };
   if (/\b(en\s+)?pdf\b/i.test(tl) && action && tl.length < 160) return { type: "generic", instruction: t };
   return null;
+}
+
+function afficherSiteChat(botEl, site) {
+  botEl.classList.remove("thinking");
+  botEl.innerHTML = "";
+  const p = document.createElement("p");
+  p.textContent = `🌐 Site prêt : ${site.titre || "Mon site"}`;
+  botEl.appendChild(p);
+
+  let html = "";
+  if (site.base64) {
+    try {
+      html = decodeURIComponent(escape(atob(site.base64)));
+    } catch {
+      html = atob(site.base64);
+    }
+  }
+  if (html) {
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const frame = document.createElement("iframe");
+    frame.className = "site-preview";
+    frame.title = site.titre || "Aperçu du site";
+    frame.src = url;
+    botEl.appendChild(frame);
+
+    const actions = document.createElement("div");
+    actions.className = "image-result-actions site-actions";
+
+    const dl = document.createElement("a");
+    dl.href = url;
+    dl.download = site.nom || "site.html";
+    dl.className = "btn-primary";
+    dl.textContent = "⬇️ Télécharger le site (.html)";
+    actions.appendChild(dl);
+
+    const open = document.createElement("a");
+    open.href = url;
+    open.target = "_blank";
+    open.rel = "noopener";
+    open.className = "btn-ghost";
+    open.textContent = "↗ Ouvrir en plein écran";
+    actions.appendChild(open);
+
+    botEl.appendChild(actions);
+  }
+
+  if (site.apercu) {
+    const note = document.createElement("p");
+    note.className = "site-note";
+    note.textContent = site.apercu.slice(0, 280) + (site.apercu.length > 280 ? "…" : "");
+    botEl.appendChild(note);
+  }
+
+  history.push({
+    role: "assistant",
+    content: `J'ai créé le site « ${site.titre || "Mon site"} ». Tu peux le télécharger en HTML.`,
+  });
+  setState("idle");
+  endStreamingTTS(
+    `Site prêt. ${site.titre || "Mon site"}. Tu peux le télécharger ou l'ouvrir.`
+  );
 }
 
 function afficherDocumentChat(botEl, doc, instruction) {

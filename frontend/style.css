@@ -232,14 +232,53 @@ body {
 .ring-outer { width: 168px; height: 168px; border-top-color: var(--accent); border-bottom-color: transparent; animation: spin 7s linear infinite; }
 .ring-mid   { width: 150px; height: 150px; border-left-color: var(--accent); border-right-color: transparent; animation: spin 5s linear infinite reverse; }
 
-/* Visage de JARVIS au centre */
+/* Visage humain holographique au centre */
+.face-stage {
+  position: relative;
+  width: 138px; height: 138px;
+  border-radius: 50%;
+  overflow: hidden;
+  z-index: 2;
+  isolation: isolate;
+}
 .avatar {
-  width: 128px; height: 128px; border-radius: 50%; object-fit: cover;
-  border: 2px solid rgba(40,214,255,.55);
+  width: 138px; height: 138px; border-radius: 50%; object-fit: cover;
+  border: 2px solid rgba(40,214,255,.65);
   box-shadow: 0 0 22px rgba(40,214,255,.45), 0 0 60px rgba(40,214,255,.25);
   background: #03070f;
-  transition: box-shadow .3s, border-color .3s, transform .3s;
+  transition: box-shadow .3s, border-color .3s, transform .3s, filter .3s;
   animation: breathe 4s ease-in-out infinite;
+  display: block;
+  filter: saturate(1.05) contrast(1.05);
+}
+.face-vignette {
+  position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 50% 35%, transparent 42%, rgba(3,10,22,.45) 100%);
+  box-shadow: inset 0 0 24px rgba(40,214,255,.25);
+}
+.face-scan {
+  position: absolute; left: 0; right: 0; height: 28%;
+  top: -30%; pointer-events: none; z-index: 3;
+  background: linear-gradient(180deg, transparent, rgba(40,214,255,.22), transparent);
+  animation: facescan 3.8s ease-in-out infinite;
+}
+.face-mouth {
+  position: absolute; left: 50%; bottom: 18%;
+  width: 34%; height: 8%; transform: translateX(-50%) scaleY(0.4);
+  border-radius: 40%; pointer-events: none; z-index: 3; opacity: 0;
+  background: radial-gradient(ellipse, rgba(255,182,72,.55), transparent 70%);
+  filter: blur(1px);
+  transition: opacity .2s;
+}
+.face-caption {
+  margin: 4px 0 0; font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase;
+  color: rgba(40,214,255,.55);
+}
+@keyframes facescan {
+  0% { top: -30%; opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { top: 105%; opacity: 0; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes breathe { 0%,100% { box-shadow: 0 0 18px rgba(40,214,255,.4), 0 0 50px rgba(40,214,255,.2); } 50% { box-shadow: 0 0 30px rgba(40,214,255,.65), 0 0 80px rgba(40,214,255,.35); } }
@@ -255,19 +294,27 @@ body {
 
 /* --- Etats du reacteur --- */
 .reactor[data-state="listening"] .avatar { border-color: var(--ok); box-shadow: 0 0 30px var(--ok), 0 0 70px rgba(40,230,168,.45); animation: none; }
+.reactor[data-state="listening"] .face-scan { background: linear-gradient(180deg, transparent, rgba(40,230,168,.28), transparent); }
 .reactor[data-state="listening"] .ring-outer { border-top-color: var(--ok); animation-duration: 2.5s; }
 .reactor[data-state="listening"] .waves { opacity: 1; }
 .reactor[data-state="listening"] .waves span { animation: wave .9s ease-in-out infinite; }
 
 .reactor[data-state="thinking"] .ring-outer { animation-duration: 1.2s; }
 .reactor[data-state="thinking"] .ring-mid { animation-duration: 1s; }
+.reactor[data-state="thinking"] .avatar { filter: saturate(1.1) brightness(1.08); }
 
 .reactor[data-state="speaking"] .avatar { border-color: var(--gold); box-shadow: 0 0 30px var(--gold), 0 0 75px rgba(255,182,72,.45); animation: talk .5s ease-in-out infinite; }
+.reactor[data-state="speaking"] .face-mouth { opacity: 1; animation: mouthspeak .28s ease-in-out infinite; }
+.reactor[data-state="speaking"] .face-scan { animation-duration: 1.6s; background: linear-gradient(180deg, transparent, rgba(255,182,72,.3), transparent); }
 .reactor[data-state="speaking"] .ring-outer { border-top-color: var(--gold); }
 .reactor[data-state="speaking"] .ring-mid { border-left-color: var(--gold); }
 .reactor[data-state="speaking"] .waves { opacity: 1; }
 .reactor[data-state="speaking"] .waves span { background: var(--gold); box-shadow: 0 0 8px var(--gold); animation: wave .55s ease-in-out infinite; }
-@keyframes talk { 0%,100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+@keyframes talk { 0%,100% { transform: scale(1); } 50% { transform: scale(1.035); } }
+@keyframes mouthspeak {
+  0%,100% { transform: translateX(-50%) scaleY(0.35); opacity: .55; }
+  50% { transform: translateX(-50%) scaleY(1.15); opacity: 1; }
+}
 
 .waves span:nth-child(1){animation-delay:0s}.waves span:nth-child(2){animation-delay:.08s}
 .waves span:nth-child(3){animation-delay:.16s}.waves span:nth-child(4){animation-delay:.24s}
@@ -533,29 +580,29 @@ textarea#input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(4
   min-height: 90px; width: min(420px, 80vw); white-space: pre-line; text-align: left; line-height: 1.7;
 }
 
-/* ---------- Réacteur Arc enrichi ---------- */
-.reactor { width: 188px; height: 188px; }
+/* ---------- Réacteur Arc + visage humain immersif ---------- */
+.reactor { width: 220px; height: 220px; }
 .reactor-glow {
-  position: absolute; width: 150px; height: 150px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(40,214,255,.35) 0%, transparent 65%);
+  position: absolute; width: 180px; height: 180px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(40,214,255,.38) 0%, transparent 65%);
   animation: breathe 4s ease-in-out infinite; pointer-events: none;
 }
 .ring-ticks {
-  width: 188px; height: 188px; border: none !important;
+  width: 220px; height: 220px; border: none !important;
   background:
     repeating-conic-gradient(from 0deg, rgba(40,214,255,.55) 0deg 1.4deg, transparent 1.4deg 9deg);
-  -webkit-mask: radial-gradient(circle, transparent 84px, #000 85px, #000 92px, transparent 93px);
-  mask: radial-gradient(circle, transparent 84px, #000 85px, #000 92px, transparent 93px);
+  -webkit-mask: radial-gradient(circle, transparent 100px, #000 101px, #000 108px, transparent 109px);
+  mask: radial-gradient(circle, transparent 100px, #000 101px, #000 108px, transparent 109px);
   animation: spin 26s linear infinite;
 }
-.ring-outer { width: 170px !important; height: 170px !important; border-width: 2px; }
-.ring-mid   { width: 150px !important; height: 150px !important; }
+.ring-outer { width: 200px !important; height: 200px !important; border-width: 2px; }
+.ring-mid   { width: 178px !important; height: 178px !important; }
 .ring-inner {
-  width: 132px; height: 132px; border: 1px dashed rgba(40,214,255,.4);
+  width: 156px; height: 156px; border: 1px dashed rgba(40,214,255,.4);
   border-right-color: transparent; border-left-color: transparent;
   animation: spin 9s linear infinite;
 }
-.avatar { width: 116px; height: 116px; }
+.face-stage, .avatar { width: 148px; height: 148px; }
 
 /* Etats : la lueur suit la couleur d'état */
 .reactor[data-state="listening"] .reactor-glow { background: radial-gradient(circle, rgba(40,230,168,.4) 0%, transparent 65%); }
@@ -603,13 +650,14 @@ textarea#input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(4
 .welcome h2 { letter-spacing: 2px; text-shadow: 0 0 16px rgba(40,214,255,.4); }
 
 @media (max-width: 600px) {
-  .reactor { width: 130px; height: 130px; }
-  .ring-ticks { width: 130px; height: 130px; -webkit-mask: radial-gradient(circle, transparent 56px, #000 57px, #000 63px, transparent 64px); mask: radial-gradient(circle, transparent 56px, #000 57px, #000 63px, transparent 64px); }
-  .ring-outer { width: 118px !important; height: 118px !important; }
-  .ring-mid { width: 104px !important; height: 104px !important; }
-  .ring-inner { width: 90px; height: 90px; }
-  .reactor-glow { width: 100px; height: 100px; }
-  .avatar { width: 84px; height: 84px; }
+  .reactor { width: 156px; height: 156px; }
+  .ring-ticks { width: 156px; height: 156px; -webkit-mask: radial-gradient(circle, transparent 68px, #000 69px, #000 76px, transparent 77px); mask: radial-gradient(circle, transparent 68px, #000 69px, #000 76px, transparent 77px); }
+  .ring-outer { width: 142px !important; height: 142px !important; }
+  .ring-mid { width: 126px !important; height: 126px !important; }
+  .ring-inner { width: 110px; height: 110px; }
+  .reactor-glow { width: 120px; height: 120px; }
+  .face-stage, .avatar { width: 104px; height: 104px; }
+  .face-caption { font-size: 9px; }
 }
 
 /* --- Bandeau demo publique (version en ligne) --- */
@@ -666,6 +714,28 @@ textarea#input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(4
 .lock-btn { width: 100%; margin-top: 0.3rem; }
 .doc-quick-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1rem; }
 .doc-quick { font-size: 0.85rem; padding: 6px 12px; }
+
+/* Apercu site web genere */
+.site-preview {
+  width: 100%;
+  max-width: 720px;
+  height: 360px;
+  margin-top: 10px;
+  border: 1px solid rgba(40,214,255,.35);
+  border-radius: 8px;
+  background: #0a1220;
+  box-shadow: 0 0 24px rgba(40,214,255,.15);
+}
+.site-actions { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+.site-note {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+@media (max-width: 600px) {
+  .site-preview { height: 260px; }
+}
 .lock-url { color: var(--accent); font-family: "Orbitron", sans-serif; font-size: 0.85rem; margin-bottom: 1rem; letter-spacing: 1px; }
 .security-list { text-align: left; margin: 1rem 0; padding-left: 0; list-style: none; line-height: 1.7; }
 .security-list li { margin-bottom: 0.35rem; }

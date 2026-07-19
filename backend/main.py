@@ -23,7 +23,7 @@ from fastapi.responses import Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import analytics, config, diagnostic, documents, memoire, outils, rag, securite, vision
+from . import analytics, config, diagnostic, documents, memoire, outils, rag, securite, sites, vision
 
 app = FastAPI(title="JARVIS - Assistant IA local")
 
@@ -201,6 +201,13 @@ def _envelopper_sse_log(gen, conv_id: str):
                 if doc.get("apercu"):
                     full = doc["apercu"]
                     meta["type"] = "document"
+                site = ev.get("site") or {}
+                if site.get("apercu") or site.get("titre"):
+                    full = (
+                        f"Site web créé : {site.get('titre', 'Mon site')}. "
+                        f"{site.get('apercu', '')}"
+                    ).strip()
+                    meta["type"] = "site"
                 if ev.get("erreur"):
                     erreur = str(ev["erreur"])
                 if ev.get("modele"):
@@ -208,7 +215,7 @@ def _envelopper_sse_log(gen, conv_id: str):
 
         analytics.fin_conversation(conv_id, full, erreur, meta or None)
 
-    return logged
+    return logged()
 
 
 def _piece_jointe_nom(req: ChatRequest) -> Optional[str]:
@@ -467,7 +474,16 @@ async def _internet_disponible() -> bool:
     return ok
 
 
-async def _stream_cloud_un_modele(messages, modele):
+def _budget_tokens_cloud(rapide: bool = False, complexe: bool = False) -> int:
+    """Alloue assez de tokens pour une reponse complete selon la difficulte."""
+    if rapide:
+        return config.CLOUD_MAX_TOKENS_RAPIDE
+    if complexe:
+        return config.CLOUD_MAX_TOKENS_COMPLEXE
+    return config.CLOUD_MAX_TOKENS
+
+
+async def _stream_cloud_un_modele(messages, modele, max_tokens: int | None = None):
     """Streame la reponse d'UN modele cloud (format compatible OpenAI).
 
     Verifie le statut AVANT d'emettre le moindre token, pour pouvoir basculer
@@ -479,7 +495,9 @@ async def _stream_cloud_un_modele(messages, modele):
         "stream": True,
         "temperature": config.GEN_OPTIONS["temperature"],
         "top_p": config.GEN_OPTIONS["top_p"],
-        "max_tokens": config.CLOUD_MAX_TOKENS,
+        "max_tokens": max_tokens or config.CLOUD_MAX_TOKENS,
+        "frequency_penalty": config.CLOUD_FREQUENCY_PENALTY,
+        "presence_penalty": config.CLOUD_PRESENCE_PENALTY,
     }
     headers = {"Authorization": f"Bearer {config.CLOUD_API_KEY}"}
     async with httpx.AsyncClient(timeout=None) as client:
@@ -530,17 +548,38 @@ def _essayer_modele_cloud_suivant(message: str) -> bool:
     )
 
 
-async def _stream_cloud(messages, rapide: bool = False):
-    """Cascade des modeles cloud gratuits : on bascule si un quota est atteint."""
+def _question_complexe(question: str) -> bool:
+    """True = raisonnement / reponse longue : preferer un modele plus fort."""
+    q = (question or "").strip().lower()
+    if len(q) >= 140:
+        return True
+    signaux = (
+        "explique", "pourquoi", "comment", "analyse", "compare", "difference",
+        "redige", "rédige", "ecris", "écris", "code", "programme", "algorithme",
+        "plan", "strategie", "stratégie", "etape", "étape", "detail", "détail",
+        "corrige", "debug", "optimise", "optimisé", "prouve", "argumente",
+        "resume", "résume", "traduis", "refactor", "architecture",
+        "site web", "site internet", "landing", "html", "css",
+    )
+    return any(s in q for s in signaux)
+
+
+async def _stream_cloud(messages, rapide: bool = False, complexe: bool = False):
+    """Cascade des modeles cloud : qualite d'abord, bascule si quota atteint."""
     modeles = list(config.CLOUD_MODELS)
-    if rapide and config.CLOUD_MODEL_RAPIDE in modeles:
-        modeles = [config.CLOUD_MODEL_RAPIDE] + [
-            m for m in modeles if m != config.CLOUD_MODEL_RAPIDE
-        ]
+    instant = config.CLOUD_MODEL_RAPIDE
+    if rapide and not complexe and instant in modeles:
+        # Saluts uniquement : latence minimale.
+        modeles = [instant] + [m for m in modeles if m != instant]
+    elif complexe and len(modeles) > 1:
+        # Mode expert : exclure l'instant en premier choix.
+        forts = [m for m in modeles if m != instant]
+        modeles = forts + ([instant] if instant in modeles else [])
+    budget = _budget_tokens_cloud(rapide=rapide, complexe=complexe)
     derniere_erreur = None
     for modele in modeles:
         try:
-            async for chunk in _stream_cloud_un_modele(messages, modele):
+            async for chunk in _stream_cloud_un_modele(messages, modele, budget):
                 yield chunk
             return  # succes
         except Exception as exc:  # noqa: BLE001
@@ -730,18 +769,19 @@ _SALUTS = (
 
 
 def _question_rapide(question: str, piece_jointe: Optional[PieceJointe]) -> bool:
-    """True = discussion simple : on saute RAG et outils lourds."""
+    """True = salut / ack tres court : on saute RAG et outils lourds.
+
+    Important : ne pas traiter tout le chat comme « rapide », sinon la
+    comprehension et la coherence chutent (prompt trop maigre).
+    """
     if piece_jointe and piece_jointe.texte.strip():
         return False
     q = question.strip().lower()
     if not q:
         return True
-    if len(q) < 20:
-        return any(q.startswith(s) or q == s for s in _SALUTS)
-    # Chat courant sans document ni web explicite : chemin rapide.
-    if not _besoin_rag(question) and not outils.a_besoin_du_web(question):
-        if len(q) < 180 and not any(m in q for m in _MOTS_DOC):
-            return True
+    # Uniquement les vrais saluts / accusees de reception courts.
+    if len(q) <= 40:
+        return any(q == s or q.startswith(s + " ") or q.startswith(s + "!") for s in _SALUTS)
     return False
 
 
@@ -753,24 +793,65 @@ def _besoin_rag(question: str) -> bool:
     return any(m in t for m in _MOTS_DOC) or len(question.strip()) > 55
 
 
+def _historique_coherent(messages: list, limite: int) -> list:
+    """Garde les derniers messages en preservant les paires user/assistant."""
+    if not messages:
+        return []
+    recent = list(messages[-limite:])
+    # Si on commence par une reponse assistant orpheline, on l'enleve.
+    while recent and recent[0].role == "assistant":
+        recent.pop(0)
+    return recent
+
+
+def _fil_conversation(messages: list, max_tours: int = 4) -> str:
+    """Resume compact des derniers tours pour ancrer le fil (anti-derapage)."""
+    if not messages:
+        return ""
+    tours: list[str] = []
+    for m in messages[-(max_tours * 2) :]:
+        role = "U" if m.role == "user" else "J"
+        txt = (m.content or "").strip().replace("\n", " ")
+        if len(txt) > 160:
+            txt = txt[:157] + "…"
+        if txt:
+            tours.append(f"{role}: {txt}")
+    if not tours:
+        return ""
+    return (
+        "FIL RECENT (a respecter pour la coherence) :\n"
+        + "\n".join(tours)
+    )
+
+
+_MODE_EXPERT = (
+    "MODE EXPERT ACTIVE :\n"
+    "- Raisonne en silence (ne montre pas tes etapes internes).\n"
+    "- Priorise exactitude > vitesse de style.\n"
+    "- Pour le code : solution complete, edge cases, pas de pseudo-code flou.\n"
+    "- Pour une explication : definition claire → mecanisme → exemple → piege courant.\n"
+    "- Pour un plan : etapes numerotees, criteres de succes, prochaines actions.\n"
+    "- Si des donnees outils/web/docs sont fournies, appuie-toi dessus en priorite."
+)
+
+
 _REGLE_RAPIDE = (
-    "Francais, concis, direct. Pas d'intro vide. Reponds tout de suite."
+    "Reponse courte, naturelle, en francais. Pas d'intro vide. "
+    "Si c'est un salut, reponds chaleureusement en 1-2 phrases."
 )
 
 
 # Place en fin de prompt : le modele accorde plus d'importance aux dernieres consignes.
 _REGLE_FINALE = (
     "REGLES ABSOLUES (prioritaires sur tout le reste) :\n"
-    "1. LANGUE : reponds ENTIEREMENT en francais correct. Ne melange JAMAIS les langues "
-    "au milieu d'une reponse (pas d'anglais, espagnol, etc.) sauf traduction demandee.\n"
-    "2. COHERENCE : reste logique du debut a la fin. Ne te contredis pas. Chaque phrase "
-    "doit suivre naturellement la precedente.\n"
-    "3. FIDELITE : reponds a la question posee en tenant compte de l'historique de "
-    "la conversation et des infos fournies (memoire, fichier, documents).\n"
-    "4. FIABILITE : n'invente pas de faits, de noms ou de details. Si tu n'es pas sur, "
-    "dis-le clairement.\n"
-    "5. CLARTE : structure ta reponse (une idee a la fois). Pas de radotage ni de "
-    "phrases sans sens."
+    "1. LANGUE : francais correct uniquement (sauf traduction demandee).\n"
+    "2. INTENTION : reponds a ce qui est vraiment demande, pas a une version voisine.\n"
+    "3. HISTORIQUE : conserve le fil ; ne redemarre pas la conversation de zero.\n"
+    "4. STRUCTURE : reponse directe d'abord, puis details utiles.\n"
+    "5. EXACTITUDE : zero invention ; si doute, dis-le et propose une verification.\n"
+    "6. FINITION : pas de repetition, pas de digression, phrase de fin complete.\n"
+    "7. CONTROLE FINAL : ta reponse doit permettre a l'utilisateur d'agir ou de comprendre "
+    "immediatement — sinon ameliore-la avant d'envoyer."
 )
 
 
@@ -778,14 +859,13 @@ async def _construire_systeme(
     question: str,
     piece_jointe: Optional[PieceJointe] = None,
     image_jointe: Optional[ImageJointe] = None,
+    historique: Optional[list] = None,
 ) -> tuple[str, list[str]]:
     """Assemble le prompt systeme enrichi (fichier, image, memoire, docs, outils)."""
     rapide = _question_rapide(question, piece_jointe) and not image_jointe
-    parties = [
-        "Tu es JARVIS, assistant IA vif et fiable. Francais, tutoiement, concis."
-        if rapide
-        else config.SYSTEM_PROMPT
-    ]
+    complexe = _question_complexe(question) and not rapide
+    # Prompt complet meme en chemin rapide (saluts) : la coherence prime.
+    parties = [config.SYSTEM_PROMPT]
     sources: list[str] = []
 
     if image_jointe and image_jointe.base64.strip():
@@ -802,7 +882,7 @@ async def _construire_systeme(
         parties.append(
             f"FICHIER JOINT ({piece_jointe.nom}) :\n{extrait}\n"
             "Traite ce fichier selon la demande. Reponds de facon coherente et "
-            "structuree en t'appuyant sur son contenu."
+            "structuree en t'appuyant sur son contenu. Cite les passages utiles."
         )
         sources.append("fichier")
 
@@ -811,15 +891,23 @@ async def _construire_systeme(
         parties.append(bloc_mem)
         sources.append("mémoire")
 
-    # Chemin rapide : pas de RAG ni outils lourds pour les messages simples.
-    if _question_rapide(question, piece_jointe) and not image_jointe:
+    fil = _fil_conversation(historique or [])
+    if fil and not rapide:
+        parties.append(fil)
+
+    # Chemin rapide : pas de RAG ni outils lourds pour les saluts.
+    if rapide:
         parties.append(_REGLE_RAPIDE)
+        parties.append(_REGLE_FINALE)
         return "\n\n".join(parties), sources
+
+    if complexe:
+        parties.append(_MODE_EXPERT)
 
     async def _rag_ctx() -> str:
         if not _besoin_rag(question):
             return ""
-        return await asyncio.to_thread(rag.contexte_pour_prompt, question, 2)
+        return await asyncio.to_thread(rag.contexte_pour_prompt, question, 3)
 
     bloc_rag, bloc_outils = await asyncio.gather(
         _rag_ctx(),
@@ -864,6 +952,55 @@ async def chat(req: ChatRequest, request: Request):
     pj = _piece_jointe_nom(req)
 
     _capter_memoire(question)
+
+    # --- Branche site web : HTML autonome telechargeable ---
+    if sites.demande_site(question) and not req.image_jointe:
+        conv_id = analytics.debut_conversation(ip, question, ua, pj, "site")
+
+        async def stream_site():
+            yield _sse({"info": "Création du site web en cours"})
+            msgs_site = [
+                {"role": "system", "content": sites.PROMPT_SITE},
+                {
+                    "role": "user",
+                    "content": (
+                        "DEMANDE UTILISATEUR (a respecter fidelement) :\n"
+                        f"{question}\n\n"
+                        "Produis maintenant le fichier HTML complet du site."
+                    ),
+                },
+            ]
+            try:
+                brut, mode = await _completion(msgs_site, max_tokens=4500)
+                html = sites.extraire_html(brut)
+                if not html:
+                    yield _sse({
+                        "erreur": (
+                            "Je n'ai pas pu extraire un HTML valide. "
+                            "Reformule ta demande (ex. : « Crée un site vitrine pour une boulangerie »)."
+                        )
+                    })
+                    return
+                titre = sites.titre_depuis_html(html, "Mon site")
+                nom = sites.nom_fichier(titre)
+                apercu = sites.apercu_texte(html)
+                import base64
+
+                yield _sse({"mode": "cloud" if "cloud" in mode else "local", "modele": mode})
+                yield _sse({
+                    "site": {
+                        "titre": titre,
+                        "nom": nom,
+                        "format": "html",
+                        "base64": base64.b64encode(html.encode("utf-8")).decode("ascii"),
+                        "apercu": apercu,
+                    }
+                })
+                yield _sse({"done": True})
+            except Exception as exc:  # noqa: BLE001
+                yield _sse({"erreur": str(exc)})
+
+        return _sse_response(stream_site(), conv_id)
 
     # --- Branche document : CV, PDF, lettre (creation ou modification) ---
     type_doc_demande = _demande_document(question, req.piece_jointe)
@@ -922,20 +1059,27 @@ async def chat(req: ChatRequest, request: Request):
 
         return _sse_response(stream_document(), conv_id)
 
+    historique = _historique_coherent(req.messages, config.HISTORY_MAX)
+    rapide = _question_rapide(question, req.piece_jointe) and not req.image_jointe
+    complexe = _question_complexe(question) and not rapide
+
     systeme, sources = await _construire_systeme(
-        question, req.piece_jointe, req.image_jointe
+        question, req.piece_jointe, req.image_jointe, historique
     )
 
-    # Rappel de la question courante pour garder le fil coherent.
-    if question and len(req.messages) >= 2:
+    # Ancrage final ultra-fort sur la demande courante.
+    if question:
         systeme += (
-            f"\n\nQUESTION ACTUELLE : « {question} »\n"
-            "Reponds en restant coherent avec tout l'historique ci-dessus."
+            f"\n\n=== DEMANDE COURANTE ===\n« {question} »\n"
+            "Objectif : comprendre parfaitement cette demande, utiliser le contexte "
+            "necessaire, puis produire la meilleure reponse possible — precise, "
+            "coherente, complete et immédiatement utile. Ne change pas de sujet."
         )
+        if complexe:
+            systeme += (
+                "\nNiveau attendu : expert. Va au fond sans noyer l'essentiel."
+            )
 
-    historique = req.messages[-config.HISTORY_MAX :]
-
-    rapide = _question_rapide(question, req.piece_jointe) and not req.image_jointe
     if securite.mode_demo():
         if not config.CLOUD_API_KEY:
             return _erreur_stream(_message_cle_manquante(), conv_id)
@@ -1004,7 +1148,9 @@ async def chat(req: ChatRequest, request: Request):
         # On demarre l'IA tout de suite ; les sources arrivent en parallele.
         if utiliser_cloud:
             try:
-                async for chunk in _stream_cloud(messages, rapide=rapide):
+                async for chunk in _stream_cloud(
+                    messages, rapide=rapide, complexe=complexe
+                ):
                     yield chunk
                 if sources:
                     yield _sse({"sources": sources})
@@ -1051,22 +1197,33 @@ async def chat(req: ChatRequest, request: Request):
 
 @app.post("/api/tts")
 async def tts(req: TTSRequest):
-    """Genere une voix naturelle (neuronale) selon le visage choisi.
+    """Genere une voix naturelle style JARVIS (science-fiction / Iron Man).
 
-    Voix d'homme (Henri) ou de femme (Denise). Necessite Internet.
+    Voix d'homme (Henri) ou de femme (Denise), rythme cinema, texte epure.
     En cas d'echec (hors-ligne), le navigateur utilisera sa voix locale.
     """
     import edge_tts
 
-    voix = config.VOIX_NATURELLES.get(req.gender, config.VOIX_NATURELLES["femme"])
-    # Conversion vitesse/tonalite au format attendu par edge-tts.
-    pct = int(round((float(req.rate or 1.0) - 1.0) * 100))
+    from . import voix as module_voix
+
+    gender = (req.gender or "femme").lower()
+    if gender not in config.VOIX_NATURELLES:
+        gender = "femme"
+    voix = config.VOIX_NATURELLES[gender]
+    texte = module_voix.styliser_pour_tts(req.text or "", gender)
+    if not texte:
+        raise HTTPException(status_code=400, detail="texte vide")
+
+    rate_f, pitch_f = module_voix.reglages_cinematiques(
+        gender, float(req.rate or 1.0), float(req.pitch or 1.0)
+    )
+    pct = int(round((rate_f - 1.0) * 100))
     rate_str = f"{'+' if pct >= 0 else ''}{pct}%"
-    hz = int(round((float(req.pitch or 1.0) - 1.0) * 50))
+    hz = int(round((pitch_f - 1.0) * 50))
     pitch_str = f"{'+' if hz >= 0 else ''}{hz}Hz"
 
     try:
-        com = edge_tts.Communicate(req.text, voix, rate=rate_str, pitch=pitch_str)
+        com = edge_tts.Communicate(texte, voix, rate=rate_str, pitch=pitch_str)
         audio = bytearray()
         async for chunk in com.stream():
             if chunk["type"] == "audio":
@@ -1343,17 +1500,20 @@ _PROMPT_TRANSFORMATION = (
 _MAX_TRAITEMENT = 24000
 
 
-async def _completion_cloud(messages, modele) -> str:
+async def _completion_cloud(messages, modele, max_tokens: int | None = None) -> str:
     """Reponse complete (non-streaming) d'un modele cloud."""
     payload = {
         "model": modele,
         "messages": messages,
         "stream": False,
-        "temperature": 0.3,
-        "top_p": 0.9,
+        "temperature": config.GEN_OPTIONS["temperature"],
+        "top_p": config.GEN_OPTIONS["top_p"],
+        "max_tokens": max_tokens or config.CLOUD_MAX_TOKENS,
+        "frequency_penalty": config.CLOUD_FREQUENCY_PENALTY,
+        "presence_penalty": config.CLOUD_PRESENCE_PENALTY,
     }
     headers = {"Authorization": f"Bearer {config.CLOUD_API_KEY}"}
-    async with httpx.AsyncClient(timeout=120) as client:
+    async with httpx.AsyncClient(timeout=180) as client:
         r = await client.post(
             f"{config.CLOUD_API_BASE}/chat/completions", json=payload, headers=headers
         )
@@ -1362,14 +1522,17 @@ async def _completion_cloud(messages, modele) -> str:
         return r.json()["choices"][0]["message"]["content"]
 
 
-async def _completion_local(messages, modele) -> str:
+async def _completion_local(messages, modele, max_predict: int | None = None) -> str:
     """Reponse complete (non-streaming) du modele local via Ollama."""
+    options = dict(config.GEN_OPTIONS)
+    if max_predict:
+        options["num_predict"] = max_predict
     payload = {
         "model": modele,
         "messages": messages,
         "stream": False,
         "keep_alive": config.KEEP_ALIVE,
-        "options": config.GEN_OPTIONS,
+        "options": options,
     }
     async with httpx.AsyncClient(timeout=300) as client:
         r = await client.post(f"{config.OLLAMA_HOST}/api/chat", json=payload)
@@ -1378,7 +1541,7 @@ async def _completion_local(messages, modele) -> str:
         return r.json().get("message", {}).get("content", "")
 
 
-async def _completion(messages) -> tuple[str, str]:
+async def _completion(messages, max_tokens: int | None = None) -> tuple[str, str]:
     """Reponse complete : cloud (cascade) si autorise, sinon local. Renvoie (texte, mode)."""
     if securite.mode_demo() and not config.CLOUD_API_KEY:
         raise RuntimeError(_message_cle_manquante())
@@ -1386,17 +1549,22 @@ async def _completion(messages) -> tuple[str, str]:
         derniere = None
         for modele in config.CLOUD_MODELS:
             try:
-                return await _completion_cloud(messages, modele), f"cloud ({modele})"
+                return (
+                    await _completion_cloud(messages, modele, max_tokens=max_tokens),
+                    f"cloud ({modele})",
+                )
             except Exception as exc:  # noqa: BLE001
                 derniere = exc
-                if _est_quota_atteint(str(exc)):
+                if _est_quota_atteint(str(exc)) or _essayer_modele_cloud_suivant(str(exc)):
                     continue
                 break
         if securite.mode_demo():
             raise RuntimeError(f"Cloud indisponible : {derniere}") from derniere
     if securite.mode_demo():
         raise RuntimeError("Service cloud indisponible en mode demo.")
-    texte = await _completion_local(messages, config.MODEL_NAME)
+    texte = await _completion_local(
+        messages, config.MODEL_NAME, max_predict=max_tokens or None
+    )
     return texte, f"local ({config.MODEL_NAME})"
 
 
