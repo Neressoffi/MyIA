@@ -232,7 +232,7 @@ body {
 .ring-outer { width: 168px; height: 168px; border-top-color: var(--accent); border-bottom-color: transparent; animation: spin 7s linear infinite; }
 .ring-mid   { width: 150px; height: 150px; border-left-color: var(--accent); border-right-color: transparent; animation: spin 5s linear infinite reverse; }
 
-/* Visage humain holographique au centre */
+/* Visage humain holographique statique */
 .face-stage {
   position: relative;
   width: 138px; height: 138px;
@@ -246,29 +246,21 @@ body {
   border: 2px solid rgba(40,214,255,.65);
   box-shadow: 0 0 22px rgba(40,214,255,.45), 0 0 60px rgba(40,214,255,.25);
   background: #03070f;
-  transition: box-shadow .3s, border-color .3s, transform .3s, filter .3s;
+  transition: box-shadow .3s, border-color .3s, filter .3s;
   animation: breathe 4s ease-in-out infinite;
   display: block;
   filter: saturate(1.05) contrast(1.05);
 }
 .face-vignette {
-  position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  position: absolute; inset: 0; border-radius: 50%; pointer-events: none; z-index: 2;
   background: radial-gradient(circle at 50% 35%, transparent 42%, rgba(3,10,22,.45) 100%);
   box-shadow: inset 0 0 24px rgba(40,214,255,.25);
 }
 .face-scan {
   position: absolute; left: 0; right: 0; height: 28%;
-  top: -30%; pointer-events: none; z-index: 3;
-  background: linear-gradient(180deg, transparent, rgba(40,214,255,.22), transparent);
+  top: -30%; pointer-events: none; z-index: 4;
+  background: linear-gradient(180deg, transparent, rgba(40,214,255,.18), transparent);
   animation: facescan 3.8s ease-in-out infinite;
-}
-.face-mouth {
-  position: absolute; left: 50%; bottom: 18%;
-  width: 34%; height: 8%; transform: translateX(-50%) scaleY(0.4);
-  border-radius: 40%; pointer-events: none; z-index: 3; opacity: 0;
-  background: radial-gradient(ellipse, rgba(255,182,72,.55), transparent 70%);
-  filter: blur(1px);
-  transition: opacity .2s;
 }
 .face-caption {
   margin: 4px 0 0; font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase;
@@ -303,18 +295,15 @@ body {
 .reactor[data-state="thinking"] .ring-mid { animation-duration: 1s; }
 .reactor[data-state="thinking"] .avatar { filter: saturate(1.1) brightness(1.08); }
 
-.reactor[data-state="speaking"] .avatar { border-color: var(--gold); box-shadow: 0 0 30px var(--gold), 0 0 75px rgba(255,182,72,.45); animation: talk .5s ease-in-out infinite; }
-.reactor[data-state="speaking"] .face-mouth { opacity: 1; animation: mouthspeak .28s ease-in-out infinite; }
-.reactor[data-state="speaking"] .face-scan { animation-duration: 1.6s; background: linear-gradient(180deg, transparent, rgba(255,182,72,.3), transparent); }
+.reactor[data-state="speaking"] .avatar {
+  border-color: var(--gold);
+  box-shadow: 0 0 30px var(--gold), 0 0 75px rgba(255,182,72,.45);
+}
+.reactor[data-state="speaking"] .face-scan { animation-duration: 1.6s; background: linear-gradient(180deg, transparent, rgba(255,182,72,.25), transparent); }
 .reactor[data-state="speaking"] .ring-outer { border-top-color: var(--gold); }
 .reactor[data-state="speaking"] .ring-mid { border-left-color: var(--gold); }
 .reactor[data-state="speaking"] .waves { opacity: 1; }
 .reactor[data-state="speaking"] .waves span { background: var(--gold); box-shadow: 0 0 8px var(--gold); animation: wave .55s ease-in-out infinite; }
-@keyframes talk { 0%,100% { transform: scale(1); } 50% { transform: scale(1.035); } }
-@keyframes mouthspeak {
-  0%,100% { transform: translateX(-50%) scaleY(0.35); opacity: .55; }
-  50% { transform: translateX(-50%) scaleY(1.15); opacity: 1; }
-}
 
 .waves span:nth-child(1){animation-delay:0s}.waves span:nth-child(2){animation-delay:.08s}
 .waves span:nth-child(3){animation-delay:.16s}.waves span:nth-child(4){animation-delay:.24s}

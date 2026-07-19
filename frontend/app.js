@@ -275,6 +275,7 @@ const STATE_LABELS = {
   thinking: "Analyse en cours…",
   speaking: "Transmission vocale…",
 };
+
 function setState(state) {
   reactor.dataset.state = state;
   hudState.textContent = STATE_LABELS[state] || "";
